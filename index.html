@@ -3,223 +3,151 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>ぜんのすけのお洋服</title>
+  <title>ぜんのすけ 服コーデ提案</title>
   <style>
     :root{
-      --bg: linear-gradient(180deg, #fff7fb 0%, #f3f7ff 40%, #f6fff9 100%);
-      --card: rgba(255,255,255,.78);
-      --text:#1f2937;
-      --muted:#6b7280;
-      --line: rgba(229,231,235,.85);
-
-      --brandGrad: linear-gradient(135deg, #ff6fb1 0%, #7c87ff 52%, #2dd4bf 110%);
-      --danger:#ef4444;
-
-      --shadow: 0 12px 32px rgba(31,41,55,.10);
-      --shadowSoft: 0 6px 18px rgba(31,41,55,.08);
-      --radius: 22px;
+      --bg:#f6f7fb; --card:#fff; --text:#111; --muted:#6b7280; --line:#e5e7eb;
+      --brand:#111; --brand2:#3B82F6; --danger:#dc2626; --ok:#16a34a;
+      --shadow:0 6px 18px rgba(0,0,0,.06);
+      --radius:18px;
+      /* z-index 一元管理 */
+      --z-header:10;
+      --z-nav:20;
+      --z-toast:30;
+      --z-modal-backdrop:40;
+      --z-modal:50;
     }
     *{box-sizing:border-box}
     body{
       margin:0;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif;
-      background: var(--bg);
-      color: var(--text);
+      font-family: "Noto Sans JP", system-ui, -apple-system, Segoe UI, Roboto, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+      background:var(--bg); color:var(--text);
       -webkit-tap-highlight-color: transparent;
     }
-    body::before{
-      content:"";
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      background-image:
-        radial-gradient(rgba(124,135,255,.14) 1px, transparent 1px),
-        radial-gradient(rgba(255,111,177,.12) 1px, transparent 1px);
-      background-size: 28px 28px, 34px 34px;
-      background-position: 0 0, 12px 10px;
-      opacity: .35;
-      z-index: 0;
-    }
-
-    .app{ position:relative; z-index:1; max-width:520px; margin:0 auto; padding-bottom:98px;}
+    .app{max-width:520px; margin:0 auto; padding-bottom:calc(88px + env(safe-area-inset-bottom));}
     header{
-      position:sticky; top:0; z-index:10;
-      background: rgba(255,255,255,.60);
-      border-bottom: 1px solid rgba(229,231,235,.70);
-      backdrop-filter: blur(12px);
+      position:sticky; top:0; z-index:var(--z-header);
+      background:linear-gradient(to bottom, rgba(246,247,251,0.95), rgba(246,247,251,0.75));
+      backdrop-filter: blur(8px);
       padding:14px 14px 8px;
+      border-bottom:1px solid rgba(229,231,235,0.6);
     }
     .title{display:flex; align-items:flex-end; justify-content:space-between; gap:10px}
-    h1{margin:0; font-size:18px; letter-spacing:.03em}
+    h1{margin:0; font-size:18px}
     .sub{color:var(--muted); font-size:12px; margin-top:4px}
     .pill{
       display:inline-flex; align-items:center; gap:6px;
-      border: 1px solid rgba(229,231,235,.8);
-      background: rgba(255,255,255,.72);
-      box-shadow: var(--shadowSoft);
-      padding:8px 10px;
-      border-radius:999px;
-      font-weight:800;
-      font-size:12px;
+      border:1px solid var(--line); background:#fff;
+      padding:8px 10px; border-radius:999px; font-weight:600; font-size:12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.03);
     }
-
     .content{padding:14px}
     .card{
-      background: var(--card);
-      border: 1px solid rgba(229,231,235,.85);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
+      background:var(--card); border:1px solid var(--line);
+      border-radius:var(--radius); box-shadow:var(--shadow);
       padding:14px;
     }
     .stack{display:flex; flex-direction:column; gap:12px}
     .row{display:flex; align-items:center; justify-content:space-between; gap:10px}
     .row .left{display:flex; align-items:center; gap:10px; min-width:0}
-    .k{color:var(--muted); font-size:12px; width:92px; flex:0 0 auto}
+    .k{color:var(--muted); font-size:12px; width:68px; flex:0 0 auto}
     .v{min-width:0}
-    .v .name{font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .v .name{font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
     .v .meta{color:var(--muted); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-
     .btns{display:flex; gap:10px; margin-top:12px}
     button{
-      appearance:none;
-      border:none;
-      border-radius:14px;
-      padding:12px 12px;
-      font-weight:900;
-      font-size:14px;
-      cursor:pointer;
+      appearance:none; border:none; border-radius:14px; padding:12px 12px;
+      font-weight:800; font-size:14px; cursor:pointer;
     }
-    .btn-primary{background: var(--brandGrad); color:#fff}
-    .btn-ghost{
-      background: rgba(255,255,255,.78);
-      border: 1px solid rgba(229,231,235,.85);
-      box-shadow: var(--shadowSoft);
-      color: var(--text);
-    }
-    .btn-danger{
-      background: rgba(255,255,255,.78);
-      color: var(--danger);
-      border:1px solid rgba(239,68,68,.30);
-      box-shadow: var(--shadowSoft);
-    }
+    .btn-primary{background:var(--brand2); color:#fff}
+    .btn-ghost{background:#fff; color:var(--text); border:1px solid var(--line)}
+    .btn-danger{background:#fff; color:var(--danger); border:1px solid rgba(220,38,38,.35)}
     .btn-small{padding:10px 10px; font-size:13px; border-radius:12px}
     .btn-wide{width:100%}
     button:active{transform:scale(.99)}
     button[disabled]{opacity:.55; cursor:not-allowed}
-
-    .badge{
-      font-size:11px; font-weight:900; padding:6px 10px; border-radius:999px;
-      background: rgba(255,255,255,.72);
-      border: 1px solid rgba(229,231,235,.85);
-      box-shadow: 0 4px 12px rgba(31,41,55,.06);
-      color: var(--muted);
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible{
+      outline:2px solid var(--brand2); outline-offset:2px;
     }
-
+    .tabs{display:grid; grid-template-columns:repeat(3, 1fr); gap:8px}
+    .tab{
+      background:#fff; border:1px solid var(--line); border-radius:14px; padding:10px 8px;
+      font-weight:800; font-size:13px;
+    }
+    .tab.active{background:var(--brand2); border-color:var(--brand2); color:#fff}
     .field{display:flex; flex-direction:column; gap:6px}
-    label{font-size:12px; color:var(--muted); font-weight:800}
-    input, select{
-      width:100%;
-      background: rgba(255,255,255,.82);
-      border: 1px solid rgba(229,231,235,.85);
-      border-radius:14px;
-      padding:12px 12px;
-      font-size:14px;
+    label{font-size:12px; color:var(--muted); font-weight:700}
+    input, select, textarea{
+      width:100%; border:1px solid var(--line); border-radius:14px;
+      padding:12px 12px; font-size:14px; background:#fff;
       outline:none;
+      font-family:inherit;
     }
-
+    textarea{min-height:84px; resize:vertical}
     .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
-    .hint{font-size:12px; color:var(--muted); line-height:1.35}
-    .divider{height:1px; background:rgba(229,231,235,.85); margin:12px 0}
-
-    /* wardrobe list */
+    .switch{display:flex; align-items:center; gap:8px}
     .list{display:flex; flex-direction:column; gap:10px}
     .itemRow{
-      background: rgba(255,255,255,.78);
-      border: 1px solid rgba(229,231,235,.85);
-      border-radius: 18px;
-      padding:12px;
-      box-shadow: var(--shadowSoft);
+      background:#fff; border:1px solid var(--line); border-radius:16px; padding:12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.03);
     }
     .itemTop{display:flex; align-items:flex-start; justify-content:space-between; gap:10px}
+    .badge{
+      font-size:11px; font-weight:900; padding:6px 10px; border-radius:999px;
+      border:1px solid var(--line); background:#fff;
+    }
+    .badge.off{color:var(--muted)}
+    .badge.on{color:var(--ok); border-color:rgba(22,163,74,.25)}
     .actions{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap}
-
-    /* wardrobe tabs horizontal */
-    .tabs{
-      display:flex;
-      gap:8px;
-      overflow-x:auto;
-      padding-bottom:2px;
-      -webkit-overflow-scrolling: touch;
-      scroll-snap-type: x mandatory;
-    }
-    .tab{
-      flex:0 0 auto;
-      min-width: 120px;
-      scroll-snap-align: start;
-      background: rgba(255,255,255,.78);
-      border: 1px solid rgba(229,231,235,.85);
-      border-radius: 16px;
-      padding:10px 10px;
-      font-weight:900;
-      font-size:13px;
-      box-shadow: var(--shadowSoft);
-    }
-    .tab.active{
-      background: var(--brandGrad);
-      border-color: transparent;
-      color:#fff;
-    }
-
-    /* bottom nav */
+    .hint{font-size:12px; color:var(--muted); line-height:1.35}
+    .divider{height:1px; background:var(--line); margin:12px 0}
     .nav{
       position:fixed; left:0; right:0; bottom:0;
-      background: rgba(255,255,255,.70);
-      border-top: 1px solid rgba(229,231,235,.75);
-      backdrop-filter: blur(14px);
+      background:#fff; border-top:1px solid var(--line);
       padding:10px 10px calc(10px + env(safe-area-inset-bottom));
-      z-index:20;
+      z-index:var(--z-nav);
     }
-    .navInner{
-      max-width:520px;
-      margin:0 auto;
-      display:grid;
-      grid-template-columns:repeat(5,1fr);
-      gap:8px;
-    }
+    .navInner{max-width:520px; margin:0 auto; display:grid; grid-template-columns:repeat(4,1fr); gap:8px}
     .nav a{
-      text-decoration:none;
-      color:var(--muted);
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      gap:6px;
-      padding:10px 0;
-      border-radius:16px;
-      font-weight:900;
-      font-size:12px;
+      text-decoration:none; color:var(--muted);
+      display:flex; flex-direction:column; align-items:center; gap:6px;
+      padding:10px 0; border-radius:14px; font-weight:900; font-size:12px;
     }
-    .nav a.active{
-      color:var(--text);
-      background: rgba(124,135,255,.14);
-    }
-
+    .nav a.active{color:#fff; background:var(--brand2)}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace}
     .toast{
       position:fixed; left:50%; transform:translateX(-50%);
-      bottom:96px;
-      background: rgba(17,24,39,.92);
-      color:#fff;
-      padding:10px 12px;
-      border-radius:999px;
-      font-weight:900;
-      font-size:12px;
-      opacity:0;
-      pointer-events:none;
-      transition:.2s;
-      box-shadow: var(--shadowSoft);
+      bottom:calc(86px + env(safe-area-inset-bottom));
+      background:#111; color:#fff; padding:10px 12px; border-radius:999px;
+      font-weight:800; font-size:12px; opacity:0; pointer-events:none;
+      transition:opacity .2s;
+      z-index:var(--z-toast);
     }
     .toast.show{opacity:1}
-
-    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+    .chipRow{display:flex; gap:8px; flex-wrap:wrap}
+    .chip{
+      display:inline-flex; align-items:center; gap:6px;
+      font-size:12px; font-weight:900;
+      padding:8px 10px; border-radius:999px;
+      border:1px solid var(--line); background:#fff;
+    }
+    .chip strong{font-size:12px}
+    /* モーダル */
+    .modal-backdrop{
+      position:fixed; inset:0; background:rgba(0,0,0,.35);
+      z-index:var(--z-modal-backdrop);
+    }
+    .modal-card{
+      position:fixed; left:14px; right:14px; top:14px;
+      max-width:520px; margin:0 auto; z-index:var(--z-modal);
+      max-height:calc(100vh - 28px); overflow-y:auto;
+    }
+    /* 確認ダイアログ */
+    .confirm-card{
+      position:fixed; left:14px; right:14px; top:50%;
+      transform:translateY(-50%);
+      max-width:440px; margin:0 auto; z-index:var(--z-modal);
+    }
   </style>
 </head>
 <body>
@@ -227,7 +155,7 @@
     <header>
       <div class="title">
         <div>
-          <h1>ぜんのすけのお洋服</h1>
+          <h1>ぜんのすけ 服コーデ提案</h1>
           <div class="sub" id="subtitle"></div>
         </div>
         <div class="pill" id="todayPill">今日</div>
@@ -235,1060 +163,1221 @@
     </header>
 
     <main class="content">
-      <section id="view-home" class="stack"></section>
-      <section id="view-wardrobe" class="stack" style="display:none"></section>
-      <section id="view-history" class="stack" style="display:none"></section>
-      <section id="view-favorites" class="stack" style="display:none"></section>
-      <section id="view-settings" class="stack" style="display:none"></section>
+      <section id="view-home" class="stack" role="tabpanel" aria-label="ホーム"></section>
+      <section id="view-wardrobe" class="stack" role="tabpanel" aria-label="ワードローブ" hidden></section>
+      <section id="view-history" class="stack" role="tabpanel" aria-label="履歴" hidden></section>
+      <section id="view-settings" class="stack" role="tabpanel" aria-label="設定" hidden></section>
     </main>
   </div>
 
-  <nav class="nav">
+  <nav class="nav" role="navigation" aria-label="メインナビゲーション">
     <div class="navInner">
-      <a href="#home" data-nav="home" class="active">ホーム</a>
-      <a href="#wardrobe" data-nav="wardrobe">ワードローブ</a>
-      <a href="#history" data-nav="history">履歴</a>
-      <a href="#favorites" data-nav="favorites">お気に入り</a>
-      <a href="#settings" data-nav="settings">設定</a>
+      <a href="#home" data-nav="home" class="active" role="tab" aria-selected="true">ホーム</a>
+      <a href="#wardrobe" data-nav="wardrobe" role="tab" aria-selected="false">ワードローブ</a>
+      <a href="#history" data-nav="history" role="tab" aria-selected="false">履歴</a>
+      <a href="#settings" data-nav="settings" role="tab" aria-selected="false">設定/共有</a>
     </div>
   </nav>
 
-  <div class="toast" id="toast"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
-/* =========================
-   localStorage state
-   ========================= */
-const STORAGE_KEY = "zennosuke_outfit_v5";
+"use strict";
 
-/** categories (wardrobe order) : outer -> tops -> bottoms -> tights -> socks -> shoes */
+/* =========================
+   定数（マジックナンバー/文字列の一元管理）
+   ========================= */
+const STORAGE_KEY = "zennosuke_outfit_v1";
+const SCHEMA_VERSION = 1;
+const SUGGEST_COUNT = 3;
+const RECENT_WINDOW = 10;        // 直近ペナルティの対象件数
+const HISTORY_MAX = 500;          // 保存する履歴の最大件数
+const HISTORY_DISPLAY_MAX = 200;  // 画面表示する履歴の最大件数
+const TOAST_DURATION_MS = 1400;
+const SUGGEST_TRY_MAX = 80;
+const SAVE_DEBOUNCE_MS = 150;
+const VALID_CATEGORIES = ["tops", "bottoms", "outer"];
 const CATS = [
-  { key:"outer",   label:"アウター", icon:"🧥" },
-  { key:"tops",    label:"トップス", icon:"👕" },
-  { key:"bottoms", label:"ボトムス", icon:"👖" },
-  { key:"tights",  label:"タイツ",   icon:"🧦" },
-  { key:"socks",   label:"靴下",     icon:"🧦" },
-  { key:"shoes",   label:"靴",       icon:"👟" },
+  { key: "tops",    label: "トップス" },
+  { key: "bottoms", label: "ボトムス" },
+  { key: "outer",   label: "アウター" },
 ];
 
-function uid() {
-  return Math.random().toString(16).slice(2) + "-" + Date.now().toString(16);
-}
-function loadState(){
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if(raw){
-    try { return JSON.parse(raw); } catch(e){}
-  }
-  return null;
-}
-function saveState(state){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-
-/* migrate from v4 if exists */
-function migrateFromV4IfExists(){
-  const old = localStorage.getItem("zennosuke_outfit_v4");
-  if(!old) return null;
-  try{
-    const obj = JSON.parse(old);
-
-    // normalize wardrobe
-    if(Array.isArray(obj.wardrobe)){
-      obj.wardrobe = obj.wardrobe.map(it=>({
-        size:"",
-        priority: 3,
-        enabled: true,
-        ...it
-      }));
-    } else obj.wardrobe = [];
-
-    // IMPORTANT: favorites should survive history clear -> store dedicated favorites list
-    // if old had fav in history, extract them
-    const favorites = [];
-    if(Array.isArray(obj.history)){
-      for(const h of obj.history){
-        if(h && h.fav){
-          favorites.push({
-            id: h.id || uid(),
-            at: h.at || Date.now(),
-            outerId: ("outerId" in h) ? h.outerId : (h.outer_id || null),
-            topsId: h.topsId ?? null,
-            bottomsId: h.bottomsId ?? null,
-            tightsId: ("tightsId" in h) ? h.tightsId : null,
-            socksId: ("socksId" in h) ? h.socksId : null,
-            shoesId: ("shoesId" in h) ? h.shoesId : null,
-          });
-        }
-      }
-    }
-
-    obj.favorites = Array.isArray(obj.favorites) ? obj.favorites : favorites;
-
-    // normalize history
-    obj.history = (Array.isArray(obj.history) ? obj.history : []).map(h=>({
-      id: h.id || uid(),
-      at: h.at || Date.now(),
-      outerId: ("outerId" in h) ? h.outerId : null,
-      topsId: h.topsId ?? null,
-      bottomsId: h.bottomsId ?? null,
-      tightsId: ("tightsId" in h) ? h.tightsId : null,
-      socksId: ("socksId" in h) ? h.socksId : null,
-      shoesId: ("shoesId" in h) ? h.shoesId : null,
-    }));
-
-    // ui
-    obj.ui = obj.ui || {};
-    obj.ui.lock = obj.ui.lock || {};
-    if(!("outerId" in obj.ui.lock)) obj.ui.lock.outerId = null;
-    if(!("topsId" in obj.ui.lock)) obj.ui.lock.topsId = null;
-    if(!("bottomsId" in obj.ui.lock)) obj.ui.lock.bottomsId = null;
-
-    // defaults: tights/socks/shoes none fixed
-    // ★修正：null(固定しない) を "none" に上書きしない。未定義のときだけ初期値を入れる
-    ["tightsId","socksId","shoesId"].forEach(k=>{
-      if(!(k in obj.ui.lock)) obj.ui.lock[k] = "none";
-    });
-
-    obj.ui.excluded = obj.ui.excluded || [];
-    // wardrobe tab default should start from outer now
-    obj.ui.wardrobeTab = obj.ui.wardrobeTab || "outer";
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
-    return obj;
-  }catch(e){
-    return null;
-  }
-}
-
-function ensureState(){
-  let st = loadState();
-  if(!st){
-    st = migrateFromV4IfExists();
-  }
-  if(!st){
-    st = {
-      version: 5,
-      wardrobe: seedWardrobe(),
-      history: [],
-      favorites: [], // ★historyを消しても残す
-      ui: {
-        lock: {
-          outerId:null,
-          topsId:null,
-          bottomsId:null,
-          tightsId:"none",
-          socksId:"none",
-          shoesId:"none"
-        },
-        excluded: [],
-        wardrobeTab: "outer"
-      }
-    };
-    saveState(st);
-  }
-
-  // normalize
-  st.wardrobe = Array.isArray(st.wardrobe) ? st.wardrobe.map(it=>({
-    size:"", priority:3, enabled:true, ...it
-  })) : [];
-
-  st.history = Array.isArray(st.history) ? st.history.map(h=>({
-    id: uid(), at: Date.now(),
-    outerId:null, topsId:null, bottomsId:null,
-    tightsId:null, socksId:null, shoesId:null,
-    ...h
-  })) : [];
-
-  st.favorites = Array.isArray(st.favorites) ? st.favorites.map(f=>({
-    id: uid(), at: Date.now(),
-    outerId:null, topsId:null, bottomsId:null,
-    tightsId:null, socksId:null, shoesId:null,
-    ...f
-  })) : [];
-
-  st.ui = st.ui || {};
-  st.ui.lock = st.ui.lock || {};
-  if(!("outerId" in st.ui.lock)) st.ui.lock.outerId = null;
-  if(!("topsId" in st.ui.lock)) st.ui.lock.topsId = null;
-  if(!("bottomsId" in st.ui.lock)) st.ui.lock.bottomsId = null;
-
-  // ★修正：null(固定しない) を "none" に上書きしない。未定義のときだけ初期値を入れる
-  ["tightsId","socksId","shoesId"].forEach(k=>{
-    if(!(k in st.ui.lock)) st.ui.lock[k] = "none";
-  });
-
-  if(!("excluded" in st.ui)) st.ui.excluded = [];
-  if(!("wardrobeTab" in st.ui)) st.ui.wardrobeTab = "outer";
-
-  saveState(st);
-  return st;
-}
-
-function seedWardrobe(){
-  const items = [
-    { category:"tops", name:"ボーダー長袖", color:"navy/white", size:"", priority:4, enabled:true },
-    { category:"tops", name:"グレーのトレーナー", color:"gray", size:"", priority:3, enabled:true },
-    { category:"tops", name:"白Tシャツ", color:"white", size:"", priority:5, enabled:true },
-
-    { category:"bottoms", name:"デニム", color:"indigo", size:"", priority:4, enabled:true },
-    { category:"bottoms", name:"黒のスウェット", color:"black", size:"", priority:5, enabled:true },
-    { category:"bottoms", name:"ベージュのチノ", color:"beige", size:"", priority:3, enabled:true },
-
-    { category:"outer", name:"薄手のパーカー", color:"beige", size:"", priority:3, enabled:true },
-    { category:"outer", name:"ウィンドブレーカー", color:"navy", size:"", priority:4, enabled:true },
-  ].map(x => ({...x, id:uid(), createdAt:Date.now(), updatedAt:Date.now()}));
-
-  return items;
-}
-
 /* =========================
-   Outfit logic (order: outer -> tops -> bottoms -> tights -> socks -> shoes)
+   ユーティリティ
    ========================= */
-function catMeta(key){ return (CATS.find(x=>x.key===key)||{label:key, icon:""}); }
-function catLabel(key){ const c=catMeta(key); return `${c.icon} ${c.label}`; }
-
-function outfitKey(o){
-  return [
-    o.outer?.id || "none",
-    o.tops?.id || "none",
-    o.bottoms?.id || "none",
-    o.tights?.id || "none",
-    o.socks?.id || "none",
-    o.shoes?.id || "none"
-  ].join("|");
+function escapeHtml(s){
+  return String(s ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
-function buildRecentUseMap(history, N=10){
-  const m = new Map();
-  const recent = history.slice(-N);
-  for(const h of recent){
-    const ids = [h.outerId, h.topsId, h.bottomsId, h.tightsId, h.socksId, h.shoesId].filter(Boolean);
-    for(const id of ids){
-      m.set(id, (m.get(id) || 0) + 1);
-    }
+function generateId(){
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
   }
-  return m;
+  // fallback: 極稀な環境向け
+  return `${Date.now().toString(16)}-${Math.random().toString(36).slice(2, 10)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function penaltyFor(id, recentMap){
-  const c = recentMap.get(id) || 0;
-  if(c >= 3) return 0.2;
-  if(c >= 1) return 0.6;
-  return 1.0;
-}
-
-function weightedPick(items, weightFn){
-  const ws = items.map(weightFn);
-  const total = ws.reduce((a,b)=>a+b,0);
-  if(total <= 0) return null;
-  let r = Math.random() * total;
-  for(let i=0;i<items.length;i++){
-    r -= ws[i];
-    if(r <= 0) return items[i];
-  }
-  return items[items.length-1] || null;
-}
-
-function generateSuggestions(state, count=3){
-  const w = state.wardrobe.filter(x => x.enabled !== false);
-  const outers = w.filter(x=>x.category==="outer");
-  const tops = w.filter(x=>x.category==="tops");
-  const bottoms = w.filter(x=>x.category==="bottoms");
-  const tights = w.filter(x=>x.category==="tights");
-  const socks = w.filter(x=>x.category==="socks");
-  const shoes = w.filter(x=>x.category==="shoes");
-
-  const lock = state.ui.lock || {};
-
-  const lockedTops = lock.topsId ? tops.find(x=>x.id===lock.topsId) : null;
-  const lockedBottoms = lock.bottomsId ? bottoms.find(x=>x.id===lock.bottomsId) : null;
-
-  const lockedOuter =
-    lock.outerId === "none" ? null :
-    (lock.outerId ? (outers.find(x=>x.id===lock.outerId) || null) : undefined);
-
-  const lockedTights =
-    lock.tightsId === "none" ? null :
-    (lock.tightsId ? (tights.find(x=>x.id===lock.tightsId) || null) : undefined);
-
-  const lockedSocks =
-    lock.socksId === "none" ? null :
-    (lock.socksId ? (socks.find(x=>x.id===lock.socksId) || null) : undefined);
-
-  const lockedShoes =
-    lock.shoesId === "none" ? null :
-    (lock.shoesId ? (shoes.find(x=>x.id===lock.shoesId) || null) : undefined);
-
-  if(!lockedTops && tops.length===0) return [];
-  if(!lockedBottoms && bottoms.length===0) return [];
-
-  const recentMap = buildRecentUseMap(state.history, 10);
-  const excluded = new Set(state.ui.excluded || []);
-
-  const outerPool = [null, ...outers];
-  const tightsPool = [null, ...tights];
-  const socksPool = [null, ...socks];
-  const shoesPool = [null, ...shoes];
-
-  const NONE_WEIGHT = { outer: 0.8, tights: 2.2, socks: 2.0, shoes: 1.8 };
-
-  const seen = new Set();
-  const out = [];
-
-  function pickItem(pool){
-    return weightedPick(pool, it=>{
-      const base = (it.priority || 3) ** 2;
-      const p = penaltyFor(it.id, recentMap);
-      return base * p;
-    });
-  }
-  function pickOptional(pool, noneWeight){
-    return weightedPick(pool, it=>{
-      if(it===null) return noneWeight;
-      const base = (it.priority || 3) ** 2;
-      const p = penaltyFor(it.id, recentMap);
-      return base * p;
-    });
-  }
-
-  for(let tries=0; tries<120 && out.length<count; tries++){
-    const t = lockedTops ?? pickItem(tops);
-    const b = lockedBottoms ?? pickItem(bottoms);
-    if(!t || !b) break;
-
-    const o  = (lockedOuter  === undefined) ? pickOptional(outerPool,  NONE_WEIGHT.outer)  : lockedOuter;
-    const ti = (lockedTights === undefined) ? pickOptional(tightsPool, NONE_WEIGHT.tights) : lockedTights;
-    const so = (lockedSocks  === undefined) ? pickOptional(socksPool,  NONE_WEIGHT.socks)  : lockedSocks;
-    const sh = (lockedShoes  === undefined) ? pickOptional(shoesPool,  NONE_WEIGHT.shoes)  : lockedShoes;
-
-    const outfit = { outer:o, tops:t, bottoms:b, tights:ti, socks:so, shoes:sh };
-    const k = outfitKey(outfit);
-    if(excluded.has(k)) continue;
-    if(seen.has(k)) continue;
-    seen.add(k);
-    out.push(outfit);
-  }
-  return out;
-}
-
-/* =========================
-   UI rendering
-   ========================= */
-const views = {
-  home: document.getElementById("view-home"),
-  wardrobe: document.getElementById("view-wardrobe"),
-  history: document.getElementById("view-history"),
-  favorites: document.getElementById("view-favorites"),
-  settings: document.getElementById("view-settings"),
-};
-const subtitle = document.getElementById("subtitle");
-const todayPill = document.getElementById("todayPill");
-const toastEl = document.getElementById("toast");
-
-function toast(msg){
-  toastEl.textContent = msg;
-  toastEl.classList.add("show");
-  setTimeout(()=>toastEl.classList.remove("show"), 1200);
-}
 function fmtDate(ts){
   return new Date(ts).toLocaleString("ja-JP");
 }
 
-function render(){
-  const st = ensureState();
-  const countItems = st.wardrobe.filter(x => x.enabled !== false).length;
-  subtitle.textContent = `お洋服: ${countItems} 点 / 履歴: ${st.history.length} 件 / お気に入り: ${st.favorites.length} 件`;
-  todayPill.textContent = `今日 ${new Date().toLocaleDateString("ja-JP")}`;
-
-  const hash = (location.hash || "#home").replace("#","");
-  showView(hash);
-
-  renderHome(st);
-  renderWardrobe(st);
-  renderHistory(st);
-  renderFavorites(st);
-  renderSettings(st);
+function catLabel(key){
+  const c = CATS.find(x => x.key === key);
+  return c ? c.label : key;
 }
 
-function showView(name){
-  const key = views[name] ? name : "home";
-  for(const k of Object.keys(views)){
-    views[k].style.display = (k===key) ? "" : "none";
-  }
-  document.querySelectorAll(".nav a").forEach(a=>{
-    a.classList.toggle("active", a.dataset.nav===key);
-  });
-}
-
-function renderHome(st){
-  const root = views.home;
-  const suggestions = generateSuggestions(st, 3);
-  const lock = st.ui.lock || {};
-
-  root.innerHTML = `
-    <div class="card">
-      <div class="row">
-        <div style="font-weight:900; font-size:16px">今日の提案</div>
-        <button class="btn-ghost btn-small" id="btn-resuggest">再提案</button>
-      </div>
-
-      <div class="divider"></div>
-
-      <!-- lock controls in same order -->
-      <div class="field">
-        <label>${catLabel("outer")}</label>
-        <select id="lock-outer"></select>
-      </div>
-
-      <div class="grid2" style="margin-top:10px">
-        <div class="field">
-          <label>${catLabel("tops")}</label>
-          <select id="lock-tops"></select>
-        </div>
-        <div class="field">
-          <label>${catLabel("bottoms")}</label>
-          <select id="lock-bottoms"></select>
-        </div>
-      </div>
-
-      <div class="grid2" style="margin-top:10px">
-        <div class="field">
-          <label>${catLabel("tights")}</label>
-          <select id="lock-tights"></select>
-        </div>
-        <div class="field">
-          <label>${catLabel("socks")}</label>
-          <select id="lock-socks"></select>
-        </div>
-      </div>
-
-      <div class="field" style="margin-top:10px">
-        <label>${catLabel("shoes")}</label>
-        <select id="lock-shoes"></select>
-      </div>
-
-      <div class="btns">
-        <button class="btn-ghost btn-wide" id="btn-clear-excluded" ${(st.ui.excluded||[]).length===0?"disabled":""}>除外クリア</button>
-      </div>
-    </div>
-
-    <div class="stack" id="suggestion-list"></div>
-  `;
-
-  const w = st.wardrobe.filter(x => x.enabled !== false);
-  const outers = w.filter(x=>x.category==="outer");
-  const tops = w.filter(x=>x.category==="tops");
-  const bottoms = w.filter(x=>x.category==="bottoms");
-  const tights = w.filter(x=>x.category==="tights");
-  const socks = w.filter(x=>x.category==="socks");
-  const shoes = w.filter(x=>x.category==="shoes");
-
-  function fillOptional(sel, items, lockValue){
-    sel.innerHTML =
-      `<option value="">固定しない</option>
-       <option value="none">なし（固定）</option>` +
-      items.map(it=>`<option value="${it.id}">${escapeHtml(it.name)} (${escapeHtml(it.color)}${it.size? ", "+escapeHtml(it.size):""})</option>`).join("");
-    sel.value = (lockValue===null ? "" : lockValue) || "";
-  }
-
-  const selO  = root.querySelector("#lock-outer");
-  const selT  = root.querySelector("#lock-tops");
-  const selB  = root.querySelector("#lock-bottoms");
-  const selTi = root.querySelector("#lock-tights");
-  const selSo = root.querySelector("#lock-socks");
-  const selSh = root.querySelector("#lock-shoes");
-
-  fillOptional(selO, outers, lock.outerId);
-
-  // required
-  selT.innerHTML = `<option value="">固定しない</option>` + tops.map(it=>`<option value="${it.id}">${escapeHtml(it.name)} (${escapeHtml(it.color)}${it.size? ", "+escapeHtml(it.size):""})</option>`).join("");
-  selB.innerHTML = `<option value="">固定しない</option>` + bottoms.map(it=>`<option value="${it.id}">${escapeHtml(it.name)} (${escapeHtml(it.color)}${it.size? ", "+escapeHtml(it.size):""})</option>`).join("");
-  selT.value = lock.topsId || "";
-  selB.value = lock.bottomsId || "";
-
-  fillOptional(selTi, tights, lock.tightsId);
-  fillOptional(selSo, socks,  lock.socksId);
-  fillOptional(selSh, shoes,  lock.shoesId);
-
-  selO.onchange  = () => { st.ui.lock.outerId  = selO.value ? selO.value : null; saveState(st); render(); };
-  selT.onchange  = () => { st.ui.lock.topsId   = selT.value || null; saveState(st); render(); };
-  selB.onchange  = () => { st.ui.lock.bottomsId= selB.value || null; saveState(st); render(); };
-  selTi.onchange = () => { st.ui.lock.tightsId = selTi.value ? selTi.value : null; saveState(st); render(); };
-  selSo.onchange = () => { st.ui.lock.socksId  = selSo.value ? selSo.value : null; saveState(st); render(); };
-  selSh.onchange = () => { st.ui.lock.shoesId  = selSh.value ? selSh.value : null; saveState(st); render(); };
-
-  root.querySelector("#btn-resuggest").onclick = () => render();
-  root.querySelector("#btn-clear-excluded").onclick = () => {
-    st.ui.excluded = [];
-    saveState(st);
-    toast("除外をクリアしました");
-    render();
-  };
-
-  const list = root.querySelector("#suggestion-list");
-  if(suggestions.length===0){
-    list.innerHTML = `
-      <div class="card">
-        <div style="font-weight:900">提案が作れませんでした</div>
-      </div>
-    `;
-    return;
-  }
-
-  list.innerHTML = suggestions.map((o, idx)=> {
-    const k = outfitKey(o);
-    return `
-      <div class="card" data-key="${k}">
-        <div class="row">
-          <div style="font-weight:900; font-size:15px">候補 ${idx+1}</div>
-          <span class="badge">OK</span>
-        </div>
-
-        <div style="margin-top:10px" class="stack">
-          ${renderOutfitRow(catLabel("outer"), o.outer || null)}
-          ${renderOutfitRow(catLabel("tops"), o.tops)}
-          ${renderOutfitRow(catLabel("bottoms"), o.bottoms)}
-          ${renderOutfitRow(catLabel("tights"), o.tights || null)}
-          ${renderOutfitRow(catLabel("socks"), o.socks || null)}
-          ${renderOutfitRow(catLabel("shoes"), o.shoes || null)}
-        </div>
-
-        <div class="btns">
-          <button class="btn-primary btn-wide" data-act="adopt">採用</button>
-        </div>
-        <div class="btns">
-          <button class="btn-ghost btn-wide" data-act="exclude">除外して再提案</button>
-        </div>
-      </div>
-    `;
-  }).join("");
-
-  list.querySelectorAll(".card").forEach(card=>{
-    const k = card.getAttribute("data-key");
-    const adoptBtn = card.querySelector('[data-act="adopt"]');
-    const exBtn = card.querySelector('[data-act="exclude"]');
-
-    adoptBtn.onclick = () => {
-      const o = suggestions.find(x => outfitKey(x)===k);
-      if(!o) return;
-
-      st.history.push({
-        id: uid(),
-        at: Date.now(),
-        outerId: o.outer ? o.outer.id : null,
-        topsId: o.tops.id,
-        bottomsId: o.bottoms.id,
-        tightsId: o.tights ? o.tights.id : null,
-        socksId: o.socks ? o.socks.id : null,
-        shoesId: o.shoes ? o.shoes.id : null,
-      });
-
-      saveState(st);
-      toast("採用しました");
-      render();
-    };
-
-    exBtn.onclick = () => {
-      st.ui.excluded = Array.from(new Set([...(st.ui.excluded||[]), k]));
-      saveState(st);
-      toast("除外しました");
-      render();
-    };
-  });
-}
-
-function renderOutfitRow(label, item){
-  if(!item){
-    return `
-      <div class="row">
-        <div class="left">
-          <div class="k">${label}</div>
-          <div class="v">
-            <div class="name">なし</div>
-            <div class="meta">-</div>
-          </div>
-        </div>
-        <span class="badge">-</span>
-      </div>
-    `;
-  }
-  const sizeText = item.size ? ` / size: ${escapeHtml(item.size)}` : "";
-  return `
-    <div class="row">
-      <div class="left">
-        <div class="k">${label}</div>
-        <div class="v">
-          <div class="name">${escapeHtml(item.name)}</div>
-          <div class="meta">${escapeHtml(item.color)}${sizeText}</div>
-        </div>
-      </div>
-      <span class="badge">OK</span>
-    </div>
-  `;
-}
-
-function renderWardrobe(st){
-  const root = views.wardrobe;
-  const tab = st.ui.wardrobeTab || "outer";
-  const items = st.wardrobe.filter(x=>x.category===tab).sort((a,b)=>a.createdAt-b.createdAt);
-
-  root.innerHTML = `
-    <div class="card">
-      <div style="font-weight:900; font-size:16px">ワードローブ</div>
-      <div style="margin-top:12px" class="tabs" id="wardrobe-tabs"></div>
-    </div>
-
-    <div class="card">
-      <div style="font-weight:900">追加（${catLabel(tab)}）</div>
-      <div style="margin-top:10px" class="stack">
-        <div class="field">
-          <label>name</label>
-          <input id="add-name" placeholder="例：ボーダー長袖" />
-        </div>
-        <div class="field">
-          <label>color</label>
-          <input id="add-color" placeholder="例：navy/white" />
-        </div>
-        <div class="field">
-          <label>size</label>
-          <input id="add-size" placeholder="例：100 / 100-110 / 15cm" />
-        </div>
-        <button class="btn-primary btn-wide" id="btn-add">追加</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="row">
-        <div style="font-weight:900">一覧（${catLabel(tab)}）</div>
-        <span class="badge">${items.length} 点</span>
-      </div>
-      <div class="divider"></div>
-      <div class="list" id="wardrobe-list"></div>
-    </div>
-  `;
-
-  const tabs = root.querySelector("#wardrobe-tabs");
-  tabs.innerHTML = CATS.map(c => `
-    <button class="tab ${c.key===tab?"active":""}" data-tab="${c.key}">${c.icon} ${c.label}</button>
-  `).join("");
-  tabs.querySelectorAll("button").forEach(b=>{
-    b.onclick = () => {
-      st.ui.wardrobeTab = b.dataset.tab;
-      saveState(st); render();
-    };
-  });
-
-  const addName = root.querySelector("#add-name");
-  const addColor = root.querySelector("#add-color");
-  const addSize = root.querySelector("#add-size");
-
-  root.querySelector("#btn-add").onclick = () => {
-    const name = (addName.value||"").trim();
-    const color = (addColor.value||"").trim();
-    const size = (addSize.value||"").trim();
-
-    if(!name || !color){ alert("name と color は必須です"); return; }
-
-    const item = {
-      id: uid(),
-      category: tab,
-      name, color, size,
-      priority: 3,
-      enabled: true,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    };
-    st.wardrobe.push(item);
-    saveState(st);
-    toast("追加しました");
-    addName.value=""; addColor.value=""; addSize.value="";
-    render();
-  };
-
-  const list = root.querySelector("#wardrobe-list");
-  if(items.length===0){
-    list.innerHTML = `<div class="hint">まだありません</div>`;
-    return;
-  }
-
-  list.innerHTML = items.map(it => `
-    <div class="itemRow" data-id="${it.id}">
-      <div class="itemTop">
-        <div style="min-width:0">
-          <div style="font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${escapeHtml(it.name)}</div>
-          <div class="hint">${escapeHtml(it.color)}${it.size ? " / size: "+escapeHtml(it.size) : ""}</div>
-        </div>
-        <span class="badge">OK</span>
-      </div>
-
-      <div class="actions">
-        <button class="btn-ghost btn-small" data-act="edit">編集</button>
-        <button class="btn-danger btn-small" data-act="grad">卒業</button>
-      </div>
-    </div>
-  `).join("");
-
-  list.querySelectorAll(".itemRow").forEach(row=>{
-    const id = row.dataset.id;
-    const item = st.wardrobe.find(x=>x.id===id);
-
-    row.querySelector('[data-act="grad"]').onclick = () => {
-      if(!confirm("卒業しますか？")) return;
-      // unlock if needed
-      ["outerId","topsId","bottomsId","tightsId","socksId","shoesId"].forEach(k=>{
-        if(st.ui.lock && st.ui.lock[k]===id) st.ui.lock[k]=null;
-      });
-      st.wardrobe = st.wardrobe.filter(x=>x.id!==id);
-      saveState(st);
-      toast("卒業しました");
-      render();
-    };
-
-    row.querySelector('[data-act="edit"]').onclick = () => openEditDialog(st, item);
-  });
-}
-
-function openEditDialog(st, item){
-  const html = `
-    <div class="card" style="position:fixed; left:14px; right:14px; top:14px; max-width:520px; margin:0 auto; z-index:50;">
-      <div class="row">
-        <div style="font-weight:900">編集（${catLabel(item.category)}）</div>
-        <button class="btn-ghost btn-small" id="dlg-close">閉じる</button>
-      </div>
-      <div class="divider"></div>
-
-      <div class="stack">
-        <div class="field">
-          <label>name</label>
-          <input id="e-name" value="${escapeAttr(item.name)}" />
-        </div>
-        <div class="field">
-          <label>color</label>
-          <input id="e-color" value="${escapeAttr(item.color)}" />
-        </div>
-        <div class="field">
-          <label>size</label>
-          <input id="e-size" value="${escapeAttr(item.size || "")}" placeholder="例：100 / 100-110 / 15cm" />
-        </div>
-
-        <button class="btn-primary btn-wide" id="dlg-save">保存</button>
-      </div>
-    </div>
-    <div id="dlg-backdrop" style="position:fixed; inset:0; background:rgba(0,0,0,.25); z-index:40"></div>
-  `;
-
-  const wrap = document.createElement("div");
-  wrap.innerHTML = html;
-  document.body.appendChild(wrap);
-
-  function close(){ wrap.remove(); }
-  wrap.querySelector("#dlg-close").onclick = close;
-  wrap.querySelector("#dlg-backdrop").onclick = close;
-
-  wrap.querySelector("#dlg-save").onclick = () => {
-    const name = wrap.querySelector("#e-name").value.trim();
-    const color = wrap.querySelector("#e-color").value.trim();
-    const size = wrap.querySelector("#e-size").value.trim();
-
-    if(!name || !color){ alert("name と color は必須です"); return; }
-
-    item.name = name;
-    item.color = color;
-    item.size = size;
-    item.updatedAt = Date.now();
-
-    saveState(st);
-    toast("保存しました");
-    close();
-    render();
+function debounce(fn, ms){
+  let t;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), ms);
   };
 }
 
-function renderHistory(st){
-  const root = views.history;
-  const byId = new Map(st.wardrobe.map(x=>[x.id, x]));
-  const rows = [...st.history].slice().reverse().slice(0, 200);
+/* =========================
+   ストア（状態管理・IIFE でカプセル化）
+   ========================= */
+const Store = (() => {
+  let state = null;
 
-  root.innerHTML = `
-    <div class="card">
-      <div class="row">
-        <div style="font-weight:900; font-size:16px">履歴</div>
-        <button class="btn-danger btn-small" id="btn-clear-history" ${st.history.length? "":"disabled"}>全消し</button>
-      </div>
-    </div>
-
-    <div class="stack" id="hist-list"></div>
-  `;
-
-  // clear history BUT keep favorites
-  root.querySelector("#btn-clear-history").onclick = () => {
-    if(!confirm("履歴を全消ししますか？")) return;
-    st.history = [];
-    saveState(st);
-    toast("履歴を消しました");
-    render();
-  };
-
-  const list = root.querySelector("#hist-list");
-  if(rows.length===0){
-    list.innerHTML = `<div class="card"><div style="font-weight:900">まだありません</div></div>`;
-    return;
+  function defaultState(){
+    return {
+      version: SCHEMA_VERSION,
+      wardrobe: seedWardrobe(),
+      history: [],
+      ui: {
+        lock: { topsId: null, bottomsId: null, outerId: null },
+        excluded: [],
+        currentView: "home",
+        wardrobeTab: "tops",
+      },
+    };
   }
 
-  list.innerHTML = rows.map(h=>{
-    const o  = h.outerId ? byId.get(h.outerId) : null;
-    const t  = h.topsId ? byId.get(h.topsId) : null;
-    const b  = h.bottomsId ? byId.get(h.bottomsId) : null;
-    const ti = h.tightsId ? byId.get(h.tightsId) : null;
-    const so = h.socksId ? byId.get(h.socksId) : null;
-    const sh = h.shoesId ? byId.get(h.shoesId) : null;
+  function seedWardrobe(){
+    const seeds = [
+      { category: "tops", name: "ボーダー長袖",    color: "navy/white", tags: ["casual"], priority: 4, enabled: true },
+      { category: "tops", name: "グレーのトレーナー", color: "gray",    tags: ["warm"],   priority: 3, enabled: true },
+      { category: "tops", name: "白Tシャツ",        color: "white",     tags: ["basic"],  priority: 5, enabled: true },
+      { category: "bottoms", name: "デニム",            color: "indigo", tags: ["casual"], priority: 4, enabled: true },
+      { category: "bottoms", name: "黒のスウェット",     color: "black",  tags: ["easy"],   priority: 5, enabled: true },
+      { category: "bottoms", name: "ベージュのチノ",    color: "beige",  tags: ["clean"],  priority: 3, enabled: true },
+      { category: "outer", name: "薄手のパーカー",       color: "beige",  tags: ["spring"], priority: 3, enabled: true },
+      { category: "outer", name: "ウィンドブレーカー", color: "navy",   tags: ["active"], priority: 4, enabled: true },
+    ];
+    const now = Date.now();
+    return seeds.map(x => ({
+      ...x,
+      id: generateId(),
+      createdAt: now,
+      updatedAt: now,
+    }));
+  }
 
-    const key = [h.outerId||"none",h.topsId||"none",h.bottomsId||"none",h.tightsId||"none",h.socksId||"none",h.shoesId||"none"].join("|");
+  /**
+   * インポートされたデータを厳密にバリデーション。
+   * 失敗時は Error を投げ、成功時は正規化済みのstateを返す。
+   */
+  function validateAndNormalize(raw){
+    if (!raw || typeof raw !== "object") throw new Error("JSONオブジェクトではありません");
 
-    const isFav = st.favorites.some(f => (f.key ? f.key===key : (
-      (f.outerId||"none")=== (h.outerId||"none") &&
-      (f.topsId||"none")=== (h.topsId||"none") &&
-      (f.bottomsId||"none")=== (h.bottomsId||"none") &&
-      (f.tightsId||"none")=== (h.tightsId||"none") &&
-      (f.socksId||"none")=== (h.socksId||"none") &&
-      (f.shoesId||"none")=== (h.shoesId||"none")
-    )));
-    const star = isFav ? "★" : "☆";
+    if (!Array.isArray(raw.wardrobe)) throw new Error("wardrobe が配列ではありません");
+    if (!Array.isArray(raw.history))  throw new Error("history が配列ではありません");
 
-    return `
-      <div class="card" data-hid="${h.id}">
-        <div class="row">
-          <div class="hint">${fmtDate(h.at)}</div>
-          <button class="btn-ghost btn-small" data-act="fav" data-key="${escapeAttr(key)}">${star} お気に入り</button>
-        </div>
-        <div style="margin-top:10px" class="stack">
-          ${renderHistoryLine(catLabel("outer"), o, true)}
-          ${renderHistoryLine(catLabel("tops"), t, true)}
-          ${renderHistoryLine(catLabel("bottoms"), b, true)}
-          ${renderHistoryLine(catLabel("tights"), ti, true)}
-          ${renderHistoryLine(catLabel("socks"), so, true)}
-          ${renderHistoryLine(catLabel("shoes"), sh, true)}
-        </div>
-      </div>
-    `;
-  }).join("");
-
-  root.querySelectorAll('[data-act="fav"]').forEach(btn=>{
-    btn.onclick = () => {
-      const key = btn.getAttribute("data-key");
-      const [outerId,topsId,bottomsId,tightsId,socksId,shoesId] = key.split("|").map(x=>x==="none"?null:x);
-
-      const idx = st.favorites.findIndex(f=>{
-        const k = [f.outerId||"none",f.topsId||"none",f.bottomsId||"none",f.tightsId||"none",f.socksId||"none",f.shoesId||"none"].join("|");
-        return k === key;
-      });
-
-      if(idx >= 0){
-        st.favorites.splice(idx, 1);
-        toast("お気に入り解除");
-      }else{
-        st.favorites.push({
-          id: uid(),
-          at: Date.now(),
-          outerId, topsId, bottomsId, tightsId, socksId, shoesId
-        });
-        toast("お気に入りに追加");
+    // wardrobe の各アイテム
+    const wardrobe = raw.wardrobe.map((it, idx) => {
+      if (!it || typeof it !== "object") throw new Error(`wardrobe[${idx}] が不正です`);
+      if (typeof it.name !== "string" || !it.name.trim())   throw new Error(`wardrobe[${idx}].name が不正です`);
+      if (typeof it.color !== "string" || !it.color.trim()) throw new Error(`wardrobe[${idx}].color が不正です`);
+      if (!VALID_CATEGORIES.includes(it.category))          throw new Error(`wardrobe[${idx}].category が不正です`);
+      const priority = Number(it.priority);
+      if (!Number.isFinite(priority) || priority < 1 || priority > 5) {
+        throw new Error(`wardrobe[${idx}].priority が範囲外です (1-5)`);
       }
+      return {
+        id: typeof it.id === "string" && it.id ? it.id : generateId(),
+        category: it.category,
+        name: it.name.trim(),
+        color: it.color.trim(),
+        tags: Array.isArray(it.tags) ? it.tags.filter(t => typeof t === "string") : [],
+        priority,
+        enabled: it.enabled !== false,
+        createdAt: Number(it.createdAt) || Date.now(),
+        updatedAt: Number(it.updatedAt) || Date.now(),
+      };
+    });
 
-      saveState(st);
-      render();
-    };
-  });
-}
+    const validIds = new Set(wardrobe.map(w => w.id));
 
-function renderFavorites(st){
-  const root = views.favorites;
-  const byId = new Map(st.wardrobe.map(x=>[x.id, x]));
-  const favs = [...st.favorites].sort((a,b)=>b.at-a.at).slice(0, 200);
-
-  root.innerHTML = `
-    <div class="card">
-      <div class="row">
-        <div style="font-weight:900; font-size:16px">お気に入り</div>
-        <span class="badge">${favs.length} 件</span>
-      </div>
-    </div>
-
-    <div class="stack" id="fav-list"></div>
-  `;
-
-  const list = root.querySelector("#fav-list");
-  if(favs.length===0){
-    list.innerHTML = `<div class="card"><div style="font-weight:900">まだありません</div></div>`;
-    return;
-  }
-
-  list.innerHTML = favs.map(f=>{
-    const o  = f.outerId ? byId.get(f.outerId) : null;
-    const t  = f.topsId ? byId.get(f.topsId) : null;
-    const b  = f.bottomsId ? byId.get(f.bottomsId) : null;
-    const ti = f.tightsId ? byId.get(f.tightsId) : null;
-    const so = f.socksId ? byId.get(f.socksId) : null;
-    const sh = f.shoesId ? byId.get(f.shoesId) : null;
-
-    const key = [f.outerId||"none",f.topsId||"none",f.bottomsId||"none",f.tightsId||"none",f.socksId||"none",f.shoesId||"none"].join("|");
-
-    return `
-      <div class="card">
-        <div class="row">
-          <div class="hint">${fmtDate(f.at)}</div>
-          <button class="btn-ghost btn-small" data-act="unfav" data-key="${escapeAttr(key)}">★ 解除</button>
-        </div>
-        <div style="margin-top:10px" class="stack">
-          ${renderHistoryLine(catLabel("outer"), o, true)}
-          ${renderHistoryLine(catLabel("tops"), t, true)}
-          ${renderHistoryLine(catLabel("bottoms"), b, true)}
-          ${renderHistoryLine(catLabel("tights"), ti, true)}
-          ${renderHistoryLine(catLabel("socks"), so, true)}
-          ${renderHistoryLine(catLabel("shoes"), sh, true)}
-        </div>
-      </div>
-    `;
-  }).join("");
-
-  root.querySelectorAll('[data-act="unfav"]').forEach(btn=>{
-    btn.onclick = () => {
-      const key = btn.getAttribute("data-key");
-      const idx = st.favorites.findIndex(f=>{
-        const k = [f.outerId||"none",f.topsId||"none",f.bottomsId||"none",f.tightsId||"none",f.socksId||"none",f.shoesId||"none"].join("|");
-        return k === key;
-      });
-      if(idx >= 0){
-        st.favorites.splice(idx, 1);
-        saveState(st);
-        toast("お気に入り解除");
-        render();
+    // history の各エントリ
+    const history = raw.history.map((h, idx) => {
+      if (!h || typeof h !== "object") throw new Error(`history[${idx}] が不正です`);
+      if (typeof h.topsId !== "string" || typeof h.bottomsId !== "string") {
+        throw new Error(`history[${idx}] のID形式が不正です`);
       }
+      return {
+        id: typeof h.id === "string" && h.id ? h.id : generateId(),
+        at: Number(h.at) || Date.now(),
+        topsId: h.topsId,
+        bottomsId: h.bottomsId,
+        outerId: typeof h.outerId === "string" ? h.outerId : null,
+      };
+    });
+
+    // UI
+    const rawUi = (raw.ui && typeof raw.ui === "object") ? raw.ui : {};
+    const rawLock = (rawUi.lock && typeof rawUi.lock === "object") ? rawUi.lock : {};
+    const safeLockId = (v) => (typeof v === "string" && validIds.has(v)) ? v : null;
+    const outerLock = (() => {
+      if (rawLock.outerId === "none") return "none";
+      if (typeof rawLock.outerId === "string" && validIds.has(rawLock.outerId)) return rawLock.outerId;
+      return null;
+    })();
+
+    return {
+      version: SCHEMA_VERSION,
+      wardrobe,
+      history,
+      ui: {
+        lock: {
+          topsId:    safeLockId(rawLock.topsId),
+          bottomsId: safeLockId(rawLock.bottomsId),
+          outerId:   outerLock,
+        },
+        excluded: Array.isArray(rawUi.excluded) ? rawUi.excluded.filter(x => typeof x === "string") : [],
+        currentView: ["home","wardrobe","history","settings"].includes(rawUi.currentView) ? rawUi.currentView : "home",
+        wardrobeTab: VALID_CATEGORIES.includes(rawUi.wardrobeTab) ? rawUi.wardrobeTab : "tops",
+      },
     };
-  });
-}
-
-function renderHistoryLine(label, item, allowNone=false){
-  if(!item){
-    return `
-      <div class="row">
-        <div class="left">
-          <div class="k">${label}</div>
-          <div class="v">
-            <div class="name">${allowNone ? "なし" : "（卒業済み）"}</div>
-            <div class="meta">-</div>
-          </div>
-        </div>
-        <span class="badge">-</span>
-      </div>
-    `;
   }
-  return renderOutfitRow(label, item);
-}
 
-function renderSettings(st){
-  const root = views.settings;
-  root.innerHTML = `
-    <div class="card">
-      <div style="font-weight:900; font-size:16px">設定</div>
-    </div>
-
-    <div class="card">
-      <div style="font-weight:900">データ管理</div>
-
-      <div class="btns" style="margin-top:10px">
-        <button class="btn-ghost btn-wide" id="btn-export">エクスポート（JSON）</button>
-      </div>
-      <div class="btns">
-        <button class="btn-ghost btn-wide" id="btn-import">インポート（JSON）</button>
-      </div>
-      <div class="btns">
-        <button class="btn-danger btn-wide" id="btn-reset">全リセット</button>
-      </div>
-
-      <input type="file" id="file" accept="application/json" style="display:none" />
-    </div>
-  `;
-
-  root.querySelector("#btn-export").onclick = () => {
-    const st2 = ensureState();
-    const blob = new Blob([JSON.stringify(st2, null, 2)], {type:"application/json"});
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `zennosuke_outfit_backup_${new Date().toISOString().slice(0,10)}.json`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-    toast("エクスポートしました");
-  };
-
-  const file = root.querySelector("#file");
-  root.querySelector("#btn-import").onclick = () => file.click();
-  file.onchange = async () => {
-    const f = file.files && file.files[0];
-    if(!f) return;
-    try{
-      const txt = await f.text();
-      const obj = JSON.parse(txt);
-      if(!obj || !obj.wardrobe) throw new Error("形式が違います");
-
-      obj.wardrobe = (obj.wardrobe||[]).map(it=>({ size:"", priority:3, enabled:true, ...it }));
-      obj.history = (obj.history||[]).map(h=>({
-        id: uid(), at: Date.now(),
-        outerId:null, topsId:null, bottomsId:null, tightsId:null, socksId:null, shoesId:null,
-        ...h
-      }));
-      obj.favorites = (obj.favorites||[]).map(f=>({
-        id: uid(), at: Date.now(),
-        outerId:null, topsId:null, bottomsId:null, tightsId:null, socksId:null, shoesId:null,
-        ...f
-      }));
-
-      obj.ui = obj.ui || {};
-      obj.ui.lock = obj.ui.lock || {};
-      if(!("outerId" in obj.ui.lock)) obj.ui.lock.outerId = null;
-      if(!("topsId" in obj.ui.lock)) obj.ui.lock.topsId = null;
-      if(!("bottomsId" in obj.ui.lock)) obj.ui.lock.bottomsId = null;
-
-      // defaults: tights/socks/shoes none fixed
-      // （ここはインポート時の仕様として元コードを維持）
-      ["tightsId","socksId","shoesId"].forEach(k=>{
-        if(!(k in obj.ui.lock) || obj.ui.lock[k] == null) obj.ui.lock[k] = "none";
-      });
-
-      obj.ui.excluded = obj.ui.excluded || [];
-      obj.ui.wardrobeTab = obj.ui.wardrobeTab || "outer";
-
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
-      toast("インポートしました");
-      render();
-    }catch(e){
-      alert("インポートに失敗しました： " + (e.message || e));
-    }finally{
-      file.value = "";
+  function loadFromStorage(){
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return validateAndNormalize(parsed);
+    } catch {
+      // 破損データでも初期状態で起動できる
+      return null;
     }
-  };
+  }
 
-  root.querySelector("#btn-reset").onclick = () => {
-    if(!confirm("全リセットしますか？")) return;
-    localStorage.removeItem(STORAGE_KEY);
-    toast("初期データに戻しました");
-    render();
+  function persist(){
+    try {
+      // 履歴の上限管理（古いものから捨てる）
+      if (state.history.length > HISTORY_MAX) {
+        state.history = state.history.slice(-HISTORY_MAX);
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      return { ok: true };
+    } catch (e) {
+      if (e && e.name === "QuotaExceededError") {
+        return { ok: false, reason: "quota" };
+      }
+      return { ok: false, reason: "unknown", error: e };
+    }
+  }
+
+  const persistDebounced = debounce(() => {
+    const r = persist();
+    if (!r.ok) {
+      if (r.reason === "quota") UI.toast("保存容量が上限に達しました");
+      else UI.toast("保存に失敗しました");
+    }
+  }, SAVE_DEBOUNCE_MS);
+
+  return {
+    init(){
+      state = loadFromStorage() || defaultState();
+      const r = persist();
+      if (!r.ok && r.reason === "quota") {
+        UI.toast("保存容量が上限に達しました");
+      }
+      return state;
+    },
+    get: () => state,
+    save: () => persistDebounced(),
+    saveImmediate: () => persist(),
+    replace(newState){
+      state = newState;
+      return persist();
+    },
+    reset(){
+      state = defaultState();
+      return persist();
+    },
+    validate: validateAndNormalize,
+    defaultState,
   };
+})();
+
+/* =========================
+   提案ロジック
+   ========================= */
+const Suggest = (() => {
+  function outfitKey(o){
+    return `${o.tops.id}|${o.bottoms.id}|${o.outer ? o.outer.id : "none"}`;
+  }
+
+  function buildRecentUseMap(history, n){
+    const m = new Map();
+    const recent = history.slice(-n);
+    for (const h of recent) {
+      for (const id of [h.topsId, h.bottomsId, h.outerId].filter(Boolean)) {
+        m.set(id, (m.get(id) || 0) + 1);
+      }
+    }
+    return m;
+  }
+
+  function penaltyFor(id, recentMap){
+    const c = recentMap.get(id) || 0;
+    if (c >= 3) return 0.2;
+    if (c >= 1) return 0.6;
+    return 1.0;
+  }
+
+  function weightedPick(items, weightFn){
+    if (items.length === 0) return null;
+    const ws = items.map(weightFn);
+    const total = ws.reduce((a, b) => a + b, 0);
+    if (total <= 0) return null;
+    let r = Math.random() * total;
+    for (let i = 0; i < items.length; i++) {
+      r -= ws[i];
+      if (r <= 0) return items[i];
+    }
+    return items[items.length - 1];
+  }
+
+  function generate(state, count = SUGGEST_COUNT){
+    const enabled = state.wardrobe.filter(x => x.enabled);
+    const tops    = enabled.filter(x => x.category === "tops");
+    const bottoms = enabled.filter(x => x.category === "bottoms");
+    const outers  = enabled.filter(x => x.category === "outer");
+
+    const lock = state.ui.lock || { topsId: null, bottomsId: null, outerId: null };
+    const lockedTops    = lock.topsId    ? tops.find(x => x.id === lock.topsId)       : null;
+    const lockedBottoms = lock.bottomsId ? bottoms.find(x => x.id === lock.bottomsId) : null;
+
+    // outerId: null=固定しない / "none"=なし固定 / itemId=そのアウター固定
+    let lockedOuter;
+    if (lock.outerId === "none") lockedOuter = null;
+    else if (typeof lock.outerId === "string" && lock.outerId) {
+      lockedOuter = outers.find(x => x.id === lock.outerId) || null;
+    } else {
+      lockedOuter = undefined;
+    }
+
+    if (!lockedTops    && tops.length === 0)    return [];
+    if (!lockedBottoms && bottoms.length === 0) return [];
+
+    const recentMap = buildRecentUseMap(state.history, RECENT_WINDOW);
+    const excluded = new Set(state.ui.excluded || []);
+    const outerPool = [null, ...outers];
+
+    const pickItem = (pool) => weightedPick(pool, it => {
+      const base = (it.priority || 3) ** 2;
+      return base * penaltyFor(it.id, recentMap);
+    });
+
+    const pickOuter = () => weightedPick(outerPool, it => {
+      if (it === null) return 0.8;
+      const base = (it.priority || 3) ** 2;
+      return base * penaltyFor(it.id, recentMap);
+    });
+
+    const seen = new Set();
+    const out = [];
+    for (let tries = 0; tries < SUGGEST_TRY_MAX && out.length < count; tries++) {
+      const t = lockedTops ?? pickItem(tops);
+      const b = lockedBottoms ?? pickItem(bottoms);
+      if (!t || !b) break;
+      const o = (lockedOuter === undefined) ? pickOuter() : lockedOuter;
+
+      const outfit = { tops: t, bottoms: b, outer: o };
+      const k = outfitKey(outfit);
+      if (excluded.has(k) || seen.has(k)) continue;
+      seen.add(k);
+      out.push(outfit);
+    }
+    return out;
+  }
+
+  return { generate, outfitKey };
+})();
+
+/* =========================
+   UI（描画・表示制御）
+   ========================= */
+const UI = (() => {
+  const views = {
+    home:     document.getElementById("view-home"),
+    wardrobe: document.getElementById("view-wardrobe"),
+    history:  document.getElementById("view-history"),
+    settings: document.getElementById("view-settings"),
+  };
+  const subtitleEl = document.getElementById("subtitle");
+  const todayPillEl = document.getElementById("todayPill");
+  const toastEl = document.getElementById("toast");
+
+  let toastTimer = null;
+  let currentSuggestions = []; // ホームで表示中の提案（イベント委譲で参照）
+
+  function toast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove("show"), TOAST_DURATION_MS);
+  }
+
+  function showView(name){
+    for (const k of Object.keys(views)) {
+      const isActive = (k === name);
+      views[k].hidden = !isActive;
+    }
+    document.querySelectorAll(".nav a").forEach(a => {
+      const active = a.dataset.nav === name;
+      a.classList.toggle("active", active);
+      a.setAttribute("aria-selected", active ? "true" : "false");
+    });
+  }
+
+  function renderHeader(st){
+    const enabledCount = st.wardrobe.filter(x => x.enabled).length;
+    subtitleEl.textContent = `有効: ${enabledCount} 点 / 履歴: ${st.history.length} 件`;
+    todayPillEl.textContent = `今日 ${new Date().toLocaleDateString("ja-JP")}`;
+  }
+
+  /* ---------- HOME ---------- */
+  function renderHome(){
+    const st = Store.get();
+    const root = views.home;
+    const suggestions = Suggest.generate(st, SUGGEST_COUNT);
+    currentSuggestions = suggestions;
+
+    const lock = st.ui.lock;
+    const excludedCount = (st.ui.excluded || []).length;
+
+    const enabled = st.wardrobe.filter(x => x.enabled);
+    const tops    = enabled.filter(x => x.category === "tops");
+    const bottoms = enabled.filter(x => x.category === "bottoms");
+    const outers  = enabled.filter(x => x.category === "outer");
+
+    const buildOptions = (items, placeholder, extra = "") => {
+      const opts = [`<option value="">${escapeHtml(placeholder)}</option>`];
+      if (extra) opts.push(extra);
+      for (const it of items) {
+        opts.push(`<option value="${escapeHtml(it.id)}">${escapeHtml(it.name)} (${escapeHtml(it.color)})</option>`);
+      }
+      return opts.join("");
+    };
+
+    root.innerHTML = `
+      <div class="card">
+        <div class="row">
+          <div>
+            <div style="font-weight:900; font-size:16px">今日の提案</div>
+            <div class="hint">ロック・優先度・直近履歴で調整します。除外: ${excludedCount} 件</div>
+          </div>
+          <button class="btn-ghost btn-small" data-act="resuggest" aria-label="再提案">再提案</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="grid2">
+          <div class="field">
+            <label for="lock-tops">トップス（ロック）</label>
+            <select id="lock-tops" data-lock="topsId">${buildOptions(tops, "固定しない")}</select>
+          </div>
+          <div class="field">
+            <label for="lock-bottoms">ボトムス（ロック）</label>
+            <select id="lock-bottoms" data-lock="bottomsId">${buildOptions(bottoms, "固定しない")}</select>
+          </div>
+        </div>
+
+        <div class="field" style="margin-top:10px">
+          <label for="lock-outer">アウター（ロック）</label>
+          <select id="lock-outer" data-lock="outerId">${buildOptions(outers, "固定しない", `<option value="none">「なし」を固定</option>`)}</select>
+        </div>
+
+        <div class="btns">
+          <button class="btn-ghost btn-wide" data-act="clear-excluded" ${excludedCount === 0 ? "disabled" : ""}>除外クリア</button>
+        </div>
+      </div>
+
+      <div class="stack" id="suggestion-list"></div>
+    `;
+
+    // select の初期値反映
+    root.querySelector("#lock-tops").value    = lock.topsId || "";
+    root.querySelector("#lock-bottoms").value = lock.bottomsId || "";
+    root.querySelector("#lock-outer").value   = (lock.outerId === null ? "" : lock.outerId) || "";
+
+    // 提案リスト描画
+    const list = root.querySelector("#suggestion-list");
+    if (suggestions.length === 0) {
+      list.innerHTML = `
+        <div class="card">
+          <div style="font-weight:900">提案が作れませんでした</div>
+          <div class="hint" style="margin-top:6px">
+            トップスとボトムスを1点以上「有効」にしてください。ワードローブタブで切り替えられます。
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    list.innerHTML = suggestions.map((o, idx) => {
+      const k = Suggest.outfitKey(o);
+      return `
+        <div class="card" data-key="${escapeHtml(k)}">
+          <div class="row">
+            <div style="font-weight:900; font-size:15px">候補 ${idx + 1}</div>
+            <span class="badge">${k.endsWith("none") ? "アウターなし" : "アウターあり"}</span>
+          </div>
+
+          <div style="margin-top:10px" class="stack">
+            ${renderOutfitRow("トップス", o.tops)}
+            ${renderOutfitRow("ボトムス", o.bottoms)}
+            ${renderOutfitRow("アウター", o.outer || null)}
+          </div>
+
+          <div class="btns">
+            <button class="btn-primary btn-wide" data-act="adopt" aria-label="このコーデを採用">採用</button>
+          </div>
+          <div class="btns">
+            <button class="btn-ghost btn-wide" data-act="exclude" aria-label="この候補を除外して再提案">この候補を除外して再提案</button>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderOutfitRow(label, item){
+    if (!item) {
+      return `
+        <div class="row">
+          <div class="left">
+            <div class="k">${escapeHtml(label)}</div>
+            <div class="v">
+              <div class="name">なし</div>
+              <div class="meta">-</div>
+            </div>
+          </div>
+          <span class="badge off">priority -</span>
+        </div>
+      `;
+    }
+    const tagsText = (item.tags && item.tags.length) ? item.tags.join(", ") : "-";
+    return `
+      <div class="row">
+        <div class="left">
+          <div class="k">${escapeHtml(label)}</div>
+          <div class="v">
+            <div class="name">${escapeHtml(item.name)}</div>
+            <div class="meta">${escapeHtml(item.color)} / タグ: ${escapeHtml(tagsText)}</div>
+          </div>
+        </div>
+        <span class="badge ${item.enabled ? "on" : "off"}">priority ${escapeHtml(item.priority)}</span>
+      </div>
+    `;
+  }
+
+  /* ---------- WARDROBE ---------- */
+  function renderWardrobe(){
+    const st = Store.get();
+    const root = views.wardrobe;
+    const tab = st.ui.wardrobeTab;
+
+    const items = st.wardrobe
+      .filter(x => x.category === tab)
+      .sort((a, b) => a.createdAt - b.createdAt);
+    const enabledCount = items.filter(x => x.enabled).length;
+
+    root.innerHTML = `
+      <div class="card">
+        <div style="font-weight:900; font-size:16px">ワードローブ</div>
+        <div class="hint">名前・色・タグは「編集」から変更できます。(${escapeHtml(catLabel(tab))} / 有効: ${enabledCount}点)</div>
+        <div style="margin-top:12px" class="tabs" id="wardrobe-tabs" role="tablist">
+          ${CATS.map(c => `
+            <button class="tab ${c.key === tab ? "active" : ""}" data-tab="${escapeHtml(c.key)}" role="tab" aria-selected="${c.key === tab}">${escapeHtml(c.label)}</button>
+          `).join("")}
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:900">追加（${escapeHtml(catLabel(tab))}）</div>
+        <div style="margin-top:10px" class="stack">
+          <div class="field">
+            <label for="add-name">名前（必須）</label>
+            <input id="add-name" placeholder="例：ボーダー長袖" required />
+          </div>
+          <div class="field">
+            <label for="add-color">色（必須）</label>
+            <input id="add-color" placeholder="例：navy/white" required />
+          </div>
+          <div class="field">
+            <label for="add-tags">タグ（任意、カンマ区切り）</label>
+            <input id="add-tags" placeholder="例：casual,warm" />
+          </div>
+          <div class="grid2">
+            <div class="field">
+              <label for="add-priority">優先度（1-5）</label>
+              <select id="add-priority">
+                ${[1,2,3,4,5].map(v => `<option value="${v}" ${v === 3 ? "selected" : ""}>${v}</option>`).join("")}
+              </select>
+            </div>
+            <div class="field">
+              <label for="add-enabled">有効</label>
+              <div class="switch">
+                <input type="checkbox" id="add-enabled" checked />
+                <span class="hint">有効にする</span>
+              </div>
+            </div>
+          </div>
+          <button class="btn-primary btn-wide" data-act="add-item">追加する</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div style="font-weight:900">一覧（${escapeHtml(catLabel(tab))}）</div>
+          <span class="badge">${items.length} 点</span>
+        </div>
+        <div class="divider"></div>
+        <div class="list" id="wardrobe-list">
+          ${items.length === 0
+            ? `<div class="hint">まだアイテムがありません。上のフォームから追加してください。</div>`
+            : items.map(it => `
+                <div class="itemRow" data-id="${escapeHtml(it.id)}">
+                  <div class="itemTop">
+                    <div style="min-width:0">
+                      <div style="font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${escapeHtml(it.name)}</div>
+                      <div class="hint">${escapeHtml(it.color)} / タグ: ${escapeHtml((it.tags && it.tags.length) ? it.tags.join(", ") : "-")}</div>
+                    </div>
+                    <div class="chipRow">
+                      <span class="badge ${it.enabled ? "on" : "off"}">${it.enabled ? "有効" : "無効"}</span>
+                      <span class="badge">p${escapeHtml(it.priority)}</span>
+                    </div>
+                  </div>
+                  <div class="actions">
+                    <button class="btn-ghost btn-small" data-act="toggle">${it.enabled ? "無効にする" : "有効にする"}</button>
+                    <button class="btn-ghost btn-small" data-act="edit">編集</button>
+                    <button class="btn-danger btn-small" data-act="delete">削除</button>
+                  </div>
+                </div>
+              `).join("")
+          }
+        </div>
+      </div>
+    `;
+  }
+
+  /* ---------- HISTORY ---------- */
+  function renderHistory(){
+    const st = Store.get();
+    const root = views.history;
+
+    const byId = new Map(st.wardrobe.map(x => [x.id, x]));
+    const rows = [...st.history].reverse().slice(0, HISTORY_DISPLAY_MAX);
+
+    root.innerHTML = `
+      <div class="card">
+        <div class="row">
+          <div>
+            <div style="font-weight:900; font-size:16px">履歴</div>
+            <div class="hint">最新 ${HISTORY_DISPLAY_MAX} 件まで表示（採用ボタンで追加）</div>
+          </div>
+          <button class="btn-danger btn-small" data-act="clear-history" ${st.history.length ? "" : "disabled"}>全消し</button>
+        </div>
+      </div>
+
+      <div class="stack" id="hist-list">
+        ${rows.length === 0
+          ? `<div class="card"><div class="hint">まだ採用履歴がありません。ホームで「採用」してください。</div></div>`
+          : rows.map(h => {
+              const t = byId.get(h.topsId);
+              const b = byId.get(h.bottomsId);
+              const o = h.outerId ? byId.get(h.outerId) : null;
+              return `
+                <div class="card">
+                  <div class="hint">${escapeHtml(fmtDate(h.at))}</div>
+                  <div style="margin-top:10px" class="stack">
+                    ${renderHistoryLine("トップス", t, false)}
+                    ${renderHistoryLine("ボトムス", b, false)}
+                    ${renderHistoryLine("アウター", o, true)}
+                  </div>
+                </div>
+              `;
+            }).join("")
+        }
+      </div>
+    `;
+  }
+
+  function renderHistoryLine(label, item, allowNone){
+    if (!item) {
+      return `
+        <div class="row">
+          <div class="left">
+            <div class="k">${escapeHtml(label)}</div>
+            <div class="v">
+              <div class="name">${allowNone ? "なし" : "（削除済み）"}</div>
+              <div class="meta">-</div>
+            </div>
+          </div>
+          <span class="badge off">-</span>
+        </div>
+      `;
+    }
+    return renderOutfitRow(label, item);
+  }
+
+  /* ---------- SETTINGS ---------- */
+  function renderSettings(){
+    const root = views.settings;
+    root.innerHTML = `
+      <div class="card">
+        <div style="font-weight:900; font-size:16px">設定 / 共有</div>
+        <div class="hint" style="margin-top:6px">
+          このHTML版は<b>端末内保存（localStorage）</b>です。家族共有（クラウド同期）は未対応です。
+        </div>
+        <div class="divider"></div>
+        <div class="chipRow">
+          <span class="chip"><strong>ロック</strong>：トップス/ボトムス/アウター</span>
+          <span class="chip"><strong>提案</strong>：${SUGGEST_COUNT}候補</span>
+          <span class="chip"><strong>優先度</strong>：p1〜p5</span>
+          <span class="chip"><strong>直近回避</strong>：履歴${RECENT_WINDOW}件</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:900">データ管理</div>
+        <div class="hint" style="margin-top:6px">
+          端末を変えるとデータは引き継がれません。バックアップは「エクスポート」を使ってください。
+        </div>
+
+        <div class="btns" style="margin-top:10px">
+          <button class="btn-ghost btn-wide" data-act="export">エクスポート（JSON）</button>
+        </div>
+        <div class="btns">
+          <button class="btn-ghost btn-wide" data-act="import">インポート（JSON）</button>
+        </div>
+        <div class="btns">
+          <button class="btn-danger btn-wide" data-act="reset">全リセット（初期データに戻す）</button>
+        </div>
+
+        <input type="file" id="import-file" accept="application/json" style="display:none" aria-hidden="true" />
+      </div>
+    `;
+  }
+
+  /* ---------- ルート描画：ビュー単位で再描画 ---------- */
+  function renderCurrent(){
+    const st = Store.get();
+    renderHeader(st);
+    showView(st.ui.currentView);
+    switch (st.ui.currentView) {
+      case "home":     renderHome();     break;
+      case "wardrobe": renderWardrobe(); break;
+      case "history":  renderHistory();  break;
+      case "settings": renderSettings(); break;
+    }
+  }
+
+  function getCurrentSuggestions(){ return currentSuggestions; }
+
+  return {
+    init(){
+      // ハッシュ → currentView 同期
+      const hash = (location.hash || "#home").replace("#","");
+      const st = Store.get();
+      if (["home","wardrobe","history","settings"].includes(hash)) {
+        st.ui.currentView = hash;
+      }
+    },
+    toast,
+    renderCurrent,
+    showView,
+    getCurrentSuggestions,
+  };
+})();
+
+/* =========================
+   モーダル・確認ダイアログ
+   ========================= */
+const Modal = (() => {
+  let activeBackdrop = null;
+  let activeCard = null;
+  let escHandler = null;
+  let previousFocus = null;
+
+  function isOpen(){ return activeCard !== null; }
+
+  function open({ cardHtml, onClose }){
+    if (isOpen()) return false; // 二重オープン防止
+
+    previousFocus = document.activeElement;
+
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+
+    const card = document.createElement("div");
+    card.className = "card modal-card";
+    card.setAttribute("role", "dialog");
+    card.setAttribute("aria-modal", "true");
+    card.innerHTML = cardHtml;
+
+    document.body.appendChild(backdrop);
+    document.body.appendChild(card);
+    document.body.style.overflow = "hidden";
+
+    activeBackdrop = backdrop;
+    activeCard = card;
+
+    const doClose = () => close(onClose);
+    backdrop.addEventListener("click", doClose);
+
+    escHandler = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        doClose();
+      }
+    };
+    document.addEventListener("keydown", escHandler);
+
+    // 最初の入力にフォーカス
+    const firstInput = card.querySelector("input, select, textarea, button");
+    if (firstInput) firstInput.focus();
+
+    return true;
+  }
+
+  function close(onCloseCb){
+    if (!isOpen()) return;
+    if (escHandler) {
+      document.removeEventListener("keydown", escHandler);
+      escHandler = null;
+    }
+    activeBackdrop?.remove();
+    activeCard?.remove();
+    activeBackdrop = null;
+    activeCard = null;
+    document.body.style.overflow = "";
+    if (previousFocus && typeof previousFocus.focus === "function") {
+      previousFocus.focus();
+    }
+    previousFocus = null;
+    if (typeof onCloseCb === "function") onCloseCb();
+  }
+
+  function getCard(){ return activeCard; }
+
+  /**
+   * 確認ダイアログ（confirm代替）
+   */
+  function confirm(message){
+    return new Promise((resolve) => {
+      if (isOpen()) { resolve(false); return; }
+
+      const backdrop = document.createElement("div");
+      backdrop.className = "modal-backdrop";
+      const card = document.createElement("div");
+      card.className = "card confirm-card";
+      card.setAttribute("role", "alertdialog");
+      card.setAttribute("aria-modal", "true");
+      card.innerHTML = `
+        <div style="font-weight:800; font-size:15px; line-height:1.5">${escapeHtml(message)}</div>
+        <div class="btns">
+          <button class="btn-ghost btn-wide" data-confirm-act="cancel">キャンセル</button>
+          <button class="btn-danger btn-wide" data-confirm-act="ok">OK</button>
+        </div>
+      `;
+      document.body.appendChild(backdrop);
+      document.body.appendChild(card);
+      document.body.style.overflow = "hidden";
+      activeBackdrop = backdrop;
+      activeCard = card;
+
+      const cleanup = (result) => {
+        document.removeEventListener("keydown", keyHandler);
+        backdrop.remove();
+        card.remove();
+        activeBackdrop = null;
+        activeCard = null;
+        document.body.style.overflow = "";
+        resolve(result);
+      };
+      const keyHandler = (e) => {
+        if (e.key === "Escape") { e.preventDefault(); cleanup(false); }
+      };
+      document.addEventListener("keydown", keyHandler);
+      backdrop.addEventListener("click", () => cleanup(false));
+      card.addEventListener("click", (e) => {
+        const act = e.target.closest("[data-confirm-act]")?.dataset.confirmAct;
+        if (act === "ok") cleanup(true);
+        else if (act === "cancel") cleanup(false);
+      });
+      card.querySelector('[data-confirm-act="ok"]')?.focus();
+    });
+  }
+
+  return { open, close, isOpen, getCard, confirm };
+})();
+
+/* =========================
+   アクションハンドラ
+   ========================= */
+const Actions = (() => {
+  /* ---- HOME ---- */
+  function handleHome(act, target){
+    const st = Store.get();
+
+    if (act === "resuggest") {
+      UI.renderCurrent();
+      return;
+    }
+    if (act === "clear-excluded") {
+      st.ui.excluded = [];
+      Store.save();
+      UI.toast("除外をクリアしました");
+      UI.renderCurrent();
+      return;
+    }
+    if (act === "adopt" || act === "exclude") {
+      const card = target.closest("[data-key]");
+      if (!card) return;
+      const k = card.dataset.key;
+      const suggestions = UI.getCurrentSuggestions();
+      const o = suggestions.find(x => Suggest.outfitKey(x) === k);
+      if (!o) return;
+
+      if (act === "adopt") {
+        st.history.push({
+          id: generateId(),
+          at: Date.now(),
+          topsId: o.tops.id,
+          bottomsId: o.bottoms.id,
+          outerId: o.outer ? o.outer.id : null,
+        });
+        Store.save();
+        UI.toast("採用しました");
+      } else {
+        st.ui.excluded = Array.from(new Set([...(st.ui.excluded || []), k]));
+        Store.save();
+        UI.toast("除外して再提案");
+      }
+      UI.renderCurrent();
+    }
+  }
+
+  function handleHomeChange(target){
+    const lockField = target.dataset.lock;
+    if (!lockField) return;
+    const st = Store.get();
+    const v = target.value;
+    if (lockField === "outerId") {
+      st.ui.lock.outerId = v ? v : null;
+    } else {
+      st.ui.lock[lockField] = v || null;
+    }
+    Store.save();
+    UI.renderCurrent();
+  }
+
+  /* ---- WARDROBE ---- */
+  function handleWardrobe(act, target){
+    const st = Store.get();
+
+    if (act === "add-item") {
+      const root = document.getElementById("view-wardrobe");
+      const name     = root.querySelector("#add-name").value.trim();
+      const color    = root.querySelector("#add-color").value.trim();
+      const tagsText = root.querySelector("#add-tags").value;
+      const priority = Number(root.querySelector("#add-priority").value) || 3;
+      const enabled  = root.querySelector("#add-enabled").checked;
+
+      if (!name || !color) {
+        UI.toast("名前と色は必須です");
+        return;
+      }
+
+      const now = Date.now();
+      st.wardrobe.push({
+        id: generateId(),
+        category: st.ui.wardrobeTab,
+        name, color,
+        tags: tagsText.split(",").map(s => s.trim()).filter(Boolean),
+        priority,
+        enabled,
+        createdAt: now,
+        updatedAt: now,
+      });
+      Store.save();
+      UI.toast("追加しました");
+      UI.renderCurrent();
+      return;
+    }
+
+    // タブ切り替え
+    const tabBtn = target.closest("[data-tab]");
+    if (tabBtn) {
+      st.ui.wardrobeTab = tabBtn.dataset.tab;
+      Store.save();
+      UI.renderCurrent();
+      return;
+    }
+
+    // 行単位アクション
+    const row = target.closest(".itemRow");
+    if (!row) return;
+    const id = row.dataset.id;
+    const item = st.wardrobe.find(x => x.id === id);
+    if (!item) return;
+
+    if (act === "toggle") {
+      item.enabled = !item.enabled;
+      item.updatedAt = Date.now();
+      Store.save();
+      UI.toast(item.enabled ? "有効にしました" : "無効にしました");
+      UI.renderCurrent();
+    } else if (act === "delete") {
+      Modal.confirm(`「${item.name}」を削除しますか？`).then((ok) => {
+        if (!ok) return;
+        if (st.ui.lock.topsId    === id) st.ui.lock.topsId    = null;
+        if (st.ui.lock.bottomsId === id) st.ui.lock.bottomsId = null;
+        if (st.ui.lock.outerId   === id) st.ui.lock.outerId   = null;
+        st.wardrobe = st.wardrobe.filter(x => x.id !== id);
+        Store.save();
+        UI.toast("削除しました");
+        UI.renderCurrent();
+      });
+    } else if (act === "edit") {
+      openEditDialog(item);
+    }
+  }
+
+  function openEditDialog(item){
+    const tagsText = (item.tags || []).join(",");
+    Modal.open({
+      cardHtml: `
+        <div class="row">
+          <div style="font-weight:900">編集（${escapeHtml(catLabel(item.category))}）</div>
+          <button class="btn-ghost btn-small" data-edit-act="close">閉じる</button>
+        </div>
+        <div class="divider"></div>
+        <div class="stack">
+          <div class="field">
+            <label for="edit-name">名前</label>
+            <input id="edit-name" value="${escapeHtml(item.name)}" />
+          </div>
+          <div class="field">
+            <label for="edit-color">色</label>
+            <input id="edit-color" value="${escapeHtml(item.color)}" />
+          </div>
+          <div class="field">
+            <label for="edit-tags">タグ（カンマ区切り）</label>
+            <input id="edit-tags" value="${escapeHtml(tagsText)}" />
+          </div>
+          <div class="grid2">
+            <div class="field">
+              <label for="edit-priority">優先度</label>
+              <select id="edit-priority">
+                ${[1,2,3,4,5].map(v => `<option value="${v}" ${v === item.priority ? "selected" : ""}>${v}</option>`).join("")}
+              </select>
+            </div>
+            <div class="field">
+              <label for="edit-enabled">有効</label>
+              <div class="switch">
+                <input type="checkbox" id="edit-enabled" ${item.enabled ? "checked" : ""} />
+                <span class="hint">有効にする</span>
+              </div>
+            </div>
+          </div>
+          <button class="btn-primary btn-wide" data-edit-act="save">保存</button>
+        </div>
+      `,
+    });
+
+    // モーダル内はイベント委譲
+    const card = Modal.getCard();
+    if (!card) return;
+    card.addEventListener("click", (e) => {
+      const act = e.target.closest("[data-edit-act]")?.dataset.editAct;
+      if (!act) return;
+      if (act === "close") {
+        Modal.close();
+      } else if (act === "save") {
+        const st = Store.get();
+        const name  = card.querySelector("#edit-name").value.trim();
+        const color = card.querySelector("#edit-color").value.trim();
+        if (!name || !color) {
+          UI.toast("名前と色は必須です");
+          return;
+        }
+        item.name  = name;
+        item.color = color;
+        item.tags  = card.querySelector("#edit-tags").value.split(",").map(s => s.trim()).filter(Boolean);
+        item.priority = Number(card.querySelector("#edit-priority").value) || 3;
+        item.enabled  = card.querySelector("#edit-enabled").checked;
+        item.updatedAt = Date.now();
+        Store.save();
+        UI.toast("保存しました");
+        Modal.close();
+        UI.renderCurrent();
+      }
+    });
+  }
+
+  /* ---- HISTORY ---- */
+  function handleHistory(act){
+    if (act === "clear-history") {
+      Modal.confirm("履歴を全消ししますか？").then((ok) => {
+        if (!ok) return;
+        const st = Store.get();
+        st.history = [];
+        Store.save();
+        UI.toast("履歴を消しました");
+        UI.renderCurrent();
+      });
+    }
+  }
+
+  /* ---- SETTINGS ---- */
+  function handleSettings(act){
+    if (act === "export") {
+      const st = Store.get();
+      const blob = new Blob([JSON.stringify(st, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `zennosuke_outfit_backup_${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      UI.toast("エクスポートしました");
+    } else if (act === "import") {
+      document.getElementById("import-file")?.click();
+    } else if (act === "reset") {
+      Modal.confirm("全リセットしますか？（ワードローブ・履歴・ロック等が消えます）").then((ok) => {
+        if (!ok) return;
+        const r = Store.reset();
+        if (!r.ok) {
+          UI.toast("リセットに失敗しました");
+          return;
+        }
+        UI.toast("初期データに戻しました");
+        UI.renderCurrent();
+      });
+    }
+  }
+
+  async function handleFileImport(file){
+    if (!file) return;
+    try {
+      const txt = await file.text();
+      const obj = JSON.parse(txt);
+      const normalized = Store.validate(obj);
+      const r = Store.replace(normalized);
+      if (!r.ok) {
+        UI.toast(r.reason === "quota" ? "保存容量が上限に達しました" : "保存に失敗しました");
+        return;
+      }
+      UI.toast("インポートしました");
+      UI.renderCurrent();
+    } catch {
+      UI.toast("インポートに失敗しました");
+    }
+  }
+
+  return {
+    handleHome,
+    handleHomeChange,
+    handleWardrobe,
+    handleHistory,
+    handleSettings,
+    handleFileImport,
+  };
+})();
+
+/* =========================
+   イベント委譲（ルート1箇所で全アクションを拾う）
+   ========================= */
+function bindDelegatedEvents(){
+  // クリック：ビューごとに振り分け
+  document.body.addEventListener("click", (e) => {
+    const actEl = e.target.closest("[data-act]");
+    if (!actEl) return;
+    const act = actEl.dataset.act;
+
+    // どのビュー内か判定
+    if (document.getElementById("view-home").contains(actEl))      { Actions.handleHome(act, actEl); return; }
+    if (document.getElementById("view-wardrobe").contains(actEl))  { Actions.handleWardrobe(act, actEl); return; }
+    if (document.getElementById("view-history").contains(actEl))   { Actions.handleHistory(act); return; }
+    if (document.getElementById("view-settings").contains(actEl))  { Actions.handleSettings(act); return; }
+  });
+
+  // change：ロック select・ワードローブタブ・ファイル選択
+  document.body.addEventListener("change", (e) => {
+    const homeRoot = document.getElementById("view-home");
+    if (homeRoot.contains(e.target) && e.target.matches("select[data-lock]")) {
+      Actions.handleHomeChange(e.target);
+      return;
+    }
+    if (e.target.id === "import-file") {
+      const f = e.target.files && e.target.files[0];
+      Actions.handleFileImport(f);
+      e.target.value = "";
+    }
+  });
+
+  // ワードローブタブは button なので click でも拾える
+  document.body.addEventListener("click", (e) => {
+    const tabBtn = e.target.closest("#wardrobe-tabs [data-tab]");
+    if (!tabBtn) return;
+    Actions.handleWardrobe(null, tabBtn);
+  });
+
+  // ナビ
+  document.querySelectorAll(".nav a").forEach(a => {
+    a.addEventListener("click", (e) => {
+      const name = a.dataset.nav;
+      if (!name) return;
+      const st = Store.get();
+      st.ui.currentView = name;
+      Store.save();
+      UI.renderCurrent();
+      // hashchange 発火は許容（hrefそのまま）
+    });
+  });
+
+  // hashchange
+  window.addEventListener("hashchange", () => {
+    const hash = (location.hash || "#home").replace("#", "");
+    if (["home","wardrobe","history","settings"].includes(hash)) {
+      const st = Store.get();
+      st.ui.currentView = hash;
+      Store.save();
+      UI.renderCurrent();
+    }
+  });
 }
 
-/* utils */
-function escapeHtml(s){
-  return String(s)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-function escapeAttr(s){ return escapeHtml(s).replaceAll("\n"," "); }
-
-window.addEventListener("hashchange", render);
-render();
+/* =========================
+   起動
+   ========================= */
+(function boot(){
+  Store.init();
+  UI.init();
+  bindDelegatedEvents();
+  UI.renderCurrent();
+})();
 </script>
 </body>
 </html>
