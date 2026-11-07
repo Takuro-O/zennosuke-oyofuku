@@ -18,6 +18,8 @@
       --z-modal:50;
     }
     *{box-sizing:border-box}
+    /* .stack 等の display 指定が hidden 属性に勝って、非表示の画面まで出てしまうのを防ぐ */
+    [hidden]{display:none !important}
     body{
       margin:0;
       font-family: "Noto Sans JP", system-ui, -apple-system, Segoe UI, Roboto, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
@@ -50,7 +52,7 @@
     .stack{display:flex; flex-direction:column; gap:12px}
     .row{display:flex; align-items:center; justify-content:space-between; gap:10px}
     .row .left{display:flex; align-items:center; gap:10px; min-width:0}
-    .k{color:var(--muted); font-size:12px; width:68px; flex:0 0 auto}
+    .k{color:var(--muted); font-size:12px; width:56px; flex:0 0 auto}
     .v{min-width:0}
     .v .name{font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
     .v .meta{color:var(--muted); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
@@ -62,7 +64,7 @@
     .btn-primary{background:var(--brand2); color:#fff}
     .btn-ghost{background:#fff; color:var(--text); border:1px solid var(--line)}
     .btn-danger{background:#fff; color:var(--danger); border:1px solid rgba(220,38,38,.35)}
-    .btn-small{padding:10px 10px; font-size:13px; border-radius:12px}
+    .btn-small{padding:10px 10px; font-size:13px; border-radius:12px; white-space:nowrap; flex:0 0 auto}
     .btn-wide{width:100%}
     button:active{transform:scale(.99)}
     button[disabled]{opacity:.55; cursor:not-allowed}
@@ -94,7 +96,7 @@
     .itemTop{display:flex; align-items:flex-start; justify-content:space-between; gap:10px}
     .badge{
       font-size:11px; font-weight:900; padding:6px 10px; border-radius:999px;
-      border:1px solid var(--line); background:#fff;
+      border:1px solid var(--line); background:#fff; white-space:nowrap; flex:0 0 auto;
     }
     .badge.off{color:var(--muted)}
     .badge.on{color:var(--ok); border-color:rgba(22,163,74,.25)}
@@ -142,6 +144,36 @@
       max-width:520px; margin:0 auto; z-index:var(--z-modal);
       max-height:calc(100vh - 28px); overflow-y:auto;
     }
+    /* 写真サムネイル */
+    .thumb{
+      width:44px; height:44px; border-radius:12px; object-fit:cover; flex:0 0 auto; display:block;
+      border:1px solid var(--line); background:#f3f4f6;
+    }
+    .thumb.lg{width:56px; height:56px; border-radius:14px}
+    .thumb.ph{
+      display:flex; align-items:center; justify-content:center;
+      color:var(--muted); font-weight:900; font-size:15px;
+    }
+    img.thumb[data-photo-view]{cursor:zoom-in}
+    [data-act="photo"].thumb{cursor:pointer}
+    /* カレンダー */
+    .calgrid{display:grid; grid-template-columns:repeat(7, 1fr); gap:6px}
+    .calhead{text-align:center; font-size:11px; font-weight:800; color:var(--muted); padding-bottom:2px}
+    .calcell{
+      padding:4px 2px; border-radius:12px; border:1px solid var(--line); background:#fff;
+      min-height:52px; font-size:12px; font-weight:800; color:var(--text);
+      display:flex; flex-direction:column; align-items:center; justify-content:space-between; gap:2px;
+    }
+    .calcell.today{border-color:var(--brand2)}
+    .calcell.sel{background:#eff6ff; border-color:var(--brand2); box-shadow:0 0 0 1px var(--brand2) inset}
+    .calcell[disabled]{opacity:.35}
+    .calblank{min-height:52px}
+    .dot{width:8px; height:8px; border-radius:50%; background:var(--ok); display:block}
+    .calthumb{width:24px; height:24px; border-radius:7px; object-fit:cover; display:block}
+    .calmark{height:24px; display:flex; align-items:center; justify-content:center}
+    /* 集計バー */
+    .bar{height:6px; border-radius:999px; background:#e8efff; overflow:hidden; margin-top:6px}
+    .bar > i{display:block; height:100%; background:var(--brand2); border-radius:999px}
     /* 確認ダイアログ */
     .confirm-card{
       position:fixed; left:14px; right:14px; top:50%;
@@ -180,6 +212,7 @@
   </nav>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <input type="file" id="photo-file" accept="image/*" style="display:none" aria-hidden="true" />
 
 <script>
 "use strict";
@@ -202,6 +235,19 @@ const CATS = [
   { key: "bottoms", label: "ボトムス" },
   { key: "outer",   label: "アウター" },
 ];
+
+/* 写真（IndexedDB に保存。localStorage の容量を圧迫しないため別管理） */
+const PHOTO_DB = "zennosuke_photos_v1";
+const PHOTO_STORE = "photos";
+const PHOTO_MAX_EDGE = 600;        // 長辺をこのpxに縮小
+const PHOTO_QUALITY = 0.78;        // JPEG品質
+const PHOTO_MAX_CHARS = 400000;    // インポート時に受け付ける1枚あたりの最大文字数
+const PHOTO_DATAURL_RE = /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/;
+
+/* 履歴の表示 */
+const HISTORY_TABS = ["calendar", "list", "stats"];
+const STATS_RANGES = ["30", "90", "all"];
+const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
 /* 天気連動 */
 const WEATHER_KEY = "zennosuke_weather_v1";   // 天気設定・キャッシュ（端末固有のためバックアップJSONには含めない）
@@ -265,6 +311,107 @@ function dayKey(ts){
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/** 履歴を日時の昇順に整える（「直近N件」の判定や上限カットが並び順に依存するため） */
+function sortHistory(st){
+  st.history.sort((a, b) => a.at - b.at);
+}
+
+/** その日の記録に使う時刻。今日なら現在時刻、過去日なら正午（日付の判定がずれないように） */
+function atForDay(day){
+  if (day === dayKey(Date.now())) return Date.now();
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(y, m - 1, d, 12, 0, 0).getTime();
+}
+
+/** ts がある日が、今日から何日前か（今日=0） */
+function daysSince(ts){
+  const a = new Date(); a.setHours(0, 0, 0, 0);
+  const b = new Date(ts); b.setHours(0, 0, 0, 0);
+  return Math.round((a - b) / 86400000);
+}
+
+function agoLabel(ts){
+  if (ts === null || ts === undefined) return "未着用";
+  const n = daysSince(ts);
+  if (n <= 0) return "今日";
+  if (n === 1) return "昨日";
+  if (n < 60) return `${n}日前`;
+  return `約${Math.floor(n / 30)}か月前`;
+}
+
+/** カレンダーの表示状態（画面内のみ。保存しない） */
+const Cal = {
+  month: dayKey(Date.now()).slice(0, 7),   // 表示中の月 "YYYY-MM"
+  day: "",                                  // 選択中の日 "YYYY-MM-DD"
+  edit: false,                              // 選択日の記録を編集中か
+};
+
+/** いま選択扱いの日。選択がなければ、今月を見ているときだけ今日 */
+function calSelectedDay(){
+  const todayK = dayKey(Date.now());
+  if (Cal.day && Cal.day.startsWith(Cal.month)) return Cal.day;
+  return Cal.month === todayK.slice(0, 7) ? todayK : "";
+}
+
+function shiftMonth(m, delta){
+  const [y, mo] = m.split("-").map(Number);
+  const d = new Date(y, mo - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/**
+ * 画像ファイルを縮小して JPEG の dataURL にする。
+ * EXIF の向きは createImageBitmap(from-image) に任せ、使えない環境は Image にフォールバック。
+ */
+async function fileToDataUrl(file){
+  if (!file || !/^image\//.test(file.type || "")) throw new Error("not an image");
+  let bmp = null;
+  if (typeof createImageBitmap === "function") {
+    try { bmp = await createImageBitmap(file, { imageOrientation: "from-image" }); } catch { bmp = null; }
+  }
+  if (!bmp) {
+    const url = URL.createObjectURL(file);
+    try {
+      bmp = await new Promise((resolve, reject) => {
+        const im = new Image();
+        const t = setTimeout(() => reject(new Error("timeout")), 10000);
+        im.onload = () => { clearTimeout(t); resolve(im); };
+        im.onerror = () => { clearTimeout(t); reject(new Error("decode failed")); };
+        im.src = url;
+      });
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+  const w0 = bmp.width, h0 = bmp.height;
+  if (!w0 || !h0) throw new Error("empty image");
+  const scale = Math.min(1, PHOTO_MAX_EDGE / Math.max(w0, h0));
+  const w = Math.max(1, Math.round(w0 * scale));
+  const h = Math.max(1, Math.round(h0 * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#fff";                 // 透過PNGの背景を白に
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(bmp, 0, 0, w, h);
+  if (typeof bmp.close === "function") bmp.close();
+  return canvas.toDataURL("image/jpeg", PHOTO_QUALITY);
+}
+
+/**
+ * 服のサムネイルHTML。写真が1枚も登録されていなければ空（レイアウトを変えない）。
+ * 写真のない服は頭文字のプレースホルダーを出して行の揃いを保つ。
+ */
+function thumbHtml(item){
+  if (PhotoStore.count() === 0) return "";
+  const src = item ? PhotoStore.get(item.id) : null;
+  if (src) {
+    return `<img class="thumb" src="${src}" alt="${escapeHtml(item.name)}" data-photo-view="${escapeHtml(item.id)}">`;
+  }
+  const ch = item ? [...String(item.name)][0] || "−" : "−";
+  return `<div class="thumb ph" aria-hidden="true">${escapeHtml(ch)}</div>`;
+}
+
 /** 履歴から「今日」の採用エントリ（最新）を返す。なければ null */
 function todaysEntry(history){
   const k = dayKey(Date.now());
@@ -305,6 +452,8 @@ const Store = (() => {
         excludedDay: "",   // excluded を作った日（日付が変わったらリセット）
         cands: [],         // 表示中の候補（ID の組）。再描画しても維持する
         candsWx: "",       // 候補を作ったときの天気の区分（変わったら候補を作り直す）
+        historyTab: "calendar",
+        statsRange: "30",
         currentView: "home",
         wardrobeTab: "tops",
       },
@@ -379,7 +528,7 @@ const Store = (() => {
         bottomsId: h.bottomsId,
         outerId: typeof h.outerId === "string" ? h.outerId : null,
       };
-    });
+    }).sort((a, b) => a.at - b.at);   // 日時の昇順に統一
 
     // UI
     const rawUi = (raw.ui && typeof raw.ui === "object") ? raw.ui : {};
@@ -404,6 +553,8 @@ const Store = (() => {
         excluded: Array.isArray(rawUi.excluded) ? rawUi.excluded.filter(x => typeof x === "string") : [],
         excludedDay: typeof rawUi.excludedDay === "string" ? rawUi.excludedDay : "",
         candsWx: typeof rawUi.candsWx === "string" ? rawUi.candsWx : "",
+        historyTab: HISTORY_TABS.includes(rawUi.historyTab) ? rawUi.historyTab : "calendar",
+        statsRange: STATS_RANGES.includes(rawUi.statsRange) ? rawUi.statsRange : "30",
         cands: Array.isArray(rawUi.cands)
           ? rawUi.cands
               .filter(c => c && typeof c.topsId === "string" && typeof c.bottomsId === "string")
@@ -491,6 +642,110 @@ const Store = (() => {
     },
     validate: validateAndNormalize,
     defaultState,
+  };
+})();
+
+/* =========================
+   写真ストア（IndexedDB）
+   - 服のID → 縮小済み JPEG の dataURL
+   - 全件をメモリにキャッシュし、描画は同期で参照できる
+   - IndexedDB が使えない環境でも、そのセッション中だけメモリで動く
+   ========================= */
+const PhotoStore = (() => {
+  const cache = new Map();
+  let db = null;
+  let persistent = false;
+
+  function openDb(){
+    return new Promise((resolve) => {
+      try {
+        if (typeof indexedDB === "undefined" || !indexedDB) { resolve(null); return; }
+        const req = indexedDB.open(PHOTO_DB, 1);
+        req.onupgradeneeded = () => {
+          if (!req.result.objectStoreNames.contains(PHOTO_STORE)) req.result.createObjectStore(PHOTO_STORE);
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+        req.onblocked = () => resolve(null);
+      } catch {
+        resolve(null);
+      }
+    });
+  }
+
+  /** 1つのトランザクションを実行し、完了したら true */
+  function run(mode, fn){
+    return new Promise((resolve) => {
+      if (!db) { resolve(false); return; }
+      try {
+        const tx = db.transaction(PHOTO_STORE, mode);
+        fn(tx.objectStore(PHOTO_STORE));
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+        tx.onabort = () => resolve(false);
+      } catch {
+        resolve(false);
+      }
+    });
+  }
+
+  async function init(){
+    db = await openDb();
+    if (!db) return;
+    persistent = true;
+    await new Promise((resolve) => {
+      try {
+        const tx = db.transaction(PHOTO_STORE, "readonly");
+        const rq = tx.objectStore(PHOTO_STORE).openCursor();
+        rq.onsuccess = () => {
+          const c = rq.result;
+          if (c) {
+            if (PHOTO_DATAURL_RE.test(String(c.value))) cache.set(String(c.key), c.value);
+            c.continue();
+          } else {
+            resolve();
+          }
+        };
+        rq.onerror = () => resolve();
+        tx.onabort = () => resolve();
+      } catch {
+        resolve();
+      }
+    });
+  }
+
+  return {
+    init,
+    get: (id) => cache.get(id) || null,
+    has: (id) => cache.has(id),
+    count: () => cache.size,
+    isPersistent: () => persistent,
+    validDataUrl: (s) => typeof s === "string" && s.length <= PHOTO_MAX_CHARS && PHOTO_DATAURL_RE.test(s),
+
+    /** 保存する。端末に永続化できたら true（メモリには常に入る） */
+    async set(id, dataUrl){
+      cache.set(id, dataUrl);
+      return run("readwrite", (s) => s.put(dataUrl, id));
+    },
+    async remove(id){
+      if (!cache.delete(id)) return true;
+      return run("readwrite", (s) => s.delete(id));
+    },
+    async clear(){
+      cache.clear();
+      return run("readwrite", (s) => s.clear());
+    },
+    /** 指定IDの写真だけを { id: dataUrl } で返す（バックアップ用） */
+    exportAll(idSet){
+      const out = {};
+      for (const [id, url] of cache) if (idSet.has(id)) out[id] = url;
+      return out;
+    },
+    /** インポート：keepIds に無い写真を捨て、incoming を上書き保存する */
+    async syncTo(keepIds, incoming){
+      for (const id of [...cache.keys()]) if (!keepIds.has(id)) await this.remove(id);
+      for (const [id, url] of Object.entries(incoming || {})) await this.set(id, url);
+    },
   };
 })();
 
@@ -1165,12 +1420,13 @@ const UI = (() => {
         <div class="row">
           <div class="left">
             <div class="k">${escapeHtml(label)}</div>
+            ${thumbHtml(null)}
             <div class="v">
               <div class="name">なし</div>
               <div class="meta">-</div>
             </div>
           </div>
-          <span class="badge off">priority -</span>
+          <span class="badge off" title="優先度">p-</span>
         </div>
       `;
     }
@@ -1179,12 +1435,13 @@ const UI = (() => {
       <div class="row">
         <div class="left">
           <div class="k">${escapeHtml(label)}</div>
+          ${thumbHtml(item)}
           <div class="v">
             <div class="name">${escapeHtml(item.name)}</div>
             <div class="meta">${escapeHtml(item.color)} / タグ: ${escapeHtml(tagsText)}</div>
           </div>
         </div>
-        <span class="badge ${item.enabled ? "on" : "off"}">priority ${escapeHtml(item.priority)}</span>
+        <span class="badge ${item.enabled ? "on" : "off"}" title="優先度">p${escapeHtml(item.priority)}</span>
       </div>
     `;
   }
@@ -1258,9 +1515,14 @@ const UI = (() => {
             : items.map(it => `
                 <div class="itemRow" data-id="${escapeHtml(it.id)}">
                   <div class="itemTop">
-                    <div style="min-width:0">
-                      <div style="font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${escapeHtml(it.name)}</div>
-                      <div class="hint">${escapeHtml(it.color)} / タグ: ${escapeHtml((it.tags && it.tags.length) ? it.tags.join(", ") : "-")}</div>
+                    <div style="display:flex; align-items:center; gap:10px; min-width:0">
+                      ${PhotoStore.has(it.id)
+                        ? `<img class="thumb lg" src="${PhotoStore.get(it.id)}" alt="${escapeHtml(it.name)}の写真" data-act="photo" role="button" tabindex="0">`
+                        : `<div class="thumb lg ph" data-act="photo" role="button" tabindex="0" aria-label="${escapeHtml(it.name)}の写真を追加">＋</div>`}
+                      <div style="min-width:0">
+                        <div style="font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${escapeHtml(it.name)}</div>
+                        <div class="hint">${escapeHtml(it.color)} / タグ: ${escapeHtml((it.tags && it.tags.length) ? it.tags.join(", ") : "-")}</div>
+                      </div>
                     </div>
                     <div class="chipRow">
                       <span class="badge ${it.enabled ? "on" : "off"}">${it.enabled ? "有効" : "無効"}</span>
@@ -1270,6 +1532,7 @@ const UI = (() => {
                   <div class="actions">
                     <button class="btn-ghost btn-small" data-act="toggle">${it.enabled ? "無効にする" : "有効にする"}</button>
                     <button class="btn-ghost btn-small" data-act="edit">編集</button>
+                    <button class="btn-ghost btn-small" data-act="photo">${PhotoStore.has(it.id) ? "写真を変更" : "写真を追加"}</button>
                     <button class="btn-danger btn-small" data-act="delete">削除</button>
                   </div>
                 </div>
@@ -1284,24 +1547,43 @@ const UI = (() => {
   function renderHistory(){
     const st = Store.get();
     const root = views.history;
+    const tab = st.ui.historyTab;
+    const tabs = [["calendar", "カレンダー"], ["list", "リスト"], ["stats", "着用回数"]];
 
-    const byId = new Map(st.wardrobe.map(x => [x.id, x]));
-    const rows = [...st.history].reverse().slice(0, HISTORY_DISPLAY_MAX);
-
-    root.innerHTML = `
+    const head = `
       <div class="card">
         <div class="row">
           <div>
             <div style="font-weight:900; font-size:16px">履歴</div>
-            <div class="hint">最新 ${HISTORY_DISPLAY_MAX} 件まで表示（採用ボタンで追加）</div>
+            <div class="hint">${st.history.length} 件の記録</div>
           </div>
-          <button class="btn-danger btn-small" data-act="clear-history" ${st.history.length ? "" : "disabled"}>全消し</button>
+          ${tab === "list"
+            ? `<button class="btn-danger btn-small" data-act="clear-history" ${st.history.length ? "" : "disabled"}>全消し</button>`
+            : ""}
+        </div>
+        <div style="margin-top:12px" class="tabs" role="tablist">
+          ${tabs.map(([k, label]) => `
+            <button class="tab ${k === tab ? "active" : ""}" data-act="hist-tab" data-tab="${k}" role="tab" aria-selected="${k === tab}">${label}</button>
+          `).join("")}
         </div>
       </div>
+    `;
 
+    let body;
+    if (tab === "calendar") body = renderCalendarBody(st);
+    else if (tab === "stats") body = renderStatsBody(st);
+    else body = renderListBody(st);
+    root.innerHTML = head + body;
+  }
+
+  /* リスト：新しい順 */
+  function renderListBody(st){
+    const byId = new Map(st.wardrobe.map(x => [x.id, x]));
+    const rows = [...st.history].reverse().slice(0, HISTORY_DISPLAY_MAX);
+    return `
       <div class="stack" id="hist-list">
         ${rows.length === 0
-          ? `<div class="card"><div class="hint">まだ採用履歴がありません。ホームで「採用」してください。</div></div>`
+          ? `<div class="card"><div class="hint">まだ記録がありません。ホームで「採用」するか、カレンダーから記録してください。</div></div>`
           : rows.map(h => {
               const t = byId.get(h.topsId);
               const b = byId.get(h.bottomsId);
@@ -1318,8 +1600,258 @@ const UI = (() => {
               `;
             }).join("")
         }
+        ${st.history.length > HISTORY_DISPLAY_MAX ? `<div class="hint">最新 ${HISTORY_DISPLAY_MAX} 件まで表示しています</div>` : ""}
       </div>
     `;
+  }
+
+  /* カレンダー：月表示＋選択した日の記録（追加・変更・削除） */
+  function renderCalendarBody(st){
+    const [yy, mm] = Cal.month.split("-").map(Number);
+    const todayK = dayKey(Date.now());
+    const curMonth = todayK.slice(0, 7);
+    const lead = new Date(yy, mm - 1, 1).getDay();    // 月初の曜日（日曜始まり）
+    const dim = new Date(yy, mm, 0).getDate();         // その月の日数
+    const byId = new Map(st.wardrobe.map(x => [x.id, x]));
+
+    // 日ごとの記録（同じ日に複数あれば最新）
+    const byDay = new Map();
+    for (const h of st.history) {
+      const k = dayKey(h.at);
+      const prev = byDay.get(k);
+      if (!prev || h.at >= prev.at) byDay.set(k, h);
+    }
+
+    const selDay = calSelectedDay();
+
+    const cells = [];
+    for (let i = 0; i < lead; i++) cells.push(`<div class="calblank"></div>`);
+    for (let d = 1; d <= dim; d++) {
+      const k = `${Cal.month}-${String(d).padStart(2, "0")}`;
+      const entry = byDay.get(k);
+      const future = k > todayK;
+      let mark = `<span class="calmark"></span>`;
+      if (entry) {
+        const topsItem = byId.get(entry.topsId);
+        const src = topsItem ? PhotoStore.get(topsItem.id) : null;
+        mark = `<span class="calmark">${src ? `<img class="calthumb" src="${src}" alt="">` : `<span class="dot"></span>`}</span>`;
+      }
+      cells.push(`
+        <button class="calcell${k === todayK ? " today" : ""}${k === selDay ? " sel" : ""}"
+                data-act="cal-day" data-day="${k}" ${future ? "disabled" : ""}
+                aria-label="${mm}月${d}日${entry ? "（記録あり）" : ""}"><span>${d}</span>${mark}</button>
+      `);
+    }
+
+    return `
+      <div class="card">
+        <div class="row">
+          <button class="btn-ghost btn-small" data-act="cal-prev" aria-label="前の月">‹</button>
+          <div style="font-weight:900">${yy}年${mm}月</div>
+          <button class="btn-ghost btn-small" data-act="cal-next" ${Cal.month >= curMonth ? "disabled" : ""} aria-label="次の月">›</button>
+        </div>
+        <div style="margin-top:12px" class="calgrid">
+          ${WEEKDAYS.map(w => `<div class="calhead">${w}</div>`).join("")}
+          ${cells.join("")}
+        </div>
+        <div class="btns">
+          <button class="btn-ghost btn-small btn-wide" data-act="cal-today">今日にもどる</button>
+        </div>
+      </div>
+      ${selDay
+        ? renderDayDetail(st, selDay, byDay.get(selDay), byId)
+        : `<div class="card"><div class="hint">日付をえらぶと、その日のコーデを確認・記録できます。</div></div>`}
+    `;
+  }
+
+  function renderDayDetail(st, day, entry, byId){
+    const [y, m, d] = day.split("-").map(Number);
+    const title = `${m}月${d}日（${WEEKDAYS[new Date(y, m - 1, d).getDay()]}）`;
+
+    // 記録あり・閲覧モード
+    if (entry && !Cal.edit) {
+      const o = entry.outerId ? byId.get(entry.outerId) : null;
+      return `
+        <div class="card" data-day="${day}">
+          <div class="row">
+            <div style="font-weight:900; font-size:15px">${escapeHtml(title)}</div>
+            <span class="badge on">記録あり</span>
+          </div>
+          <div style="margin-top:10px" class="stack">
+            ${renderHistoryLine("トップス", byId.get(entry.topsId), false)}
+            ${renderHistoryLine("ボトムス", byId.get(entry.bottomsId), false)}
+            ${renderHistoryLine("アウター", o, true)}
+          </div>
+          <div class="btns">
+            <button class="btn-ghost btn-wide" data-act="cal-edit">この日の記録を変更</button>
+          </div>
+          <div class="btns">
+            <button class="btn-danger btn-wide" data-act="cal-del">この日の記録を削除</button>
+          </div>
+        </div>
+      `;
+    }
+
+    // 記録なし／変更中：選んで保存するフォーム
+    const optionsFor = (cat, selectedId) => st.wardrobe
+      .filter(x => x.category === cat)
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .map(it => `<option value="${escapeHtml(it.id)}" ${it.id === selectedId ? "selected" : ""}>${escapeHtml(it.name)} (${escapeHtml(it.color)})${it.enabled ? "" : "（無効）"}</option>`)
+      .join("");
+
+    return `
+      <div class="card" data-day="${day}">
+        <div class="row">
+          <div style="font-weight:900; font-size:15px">${escapeHtml(title)}</div>
+          <span class="badge">${entry ? "変更中" : "記録なし"}</span>
+        </div>
+        <div class="hint" style="margin-top:6px">${entry ? "この日に着たコーデを変更できます。" : "この日に着たコーデを記録できます。"}</div>
+        <div class="stack" style="margin-top:10px">
+          <div class="field">
+            <label for="cal-tops">トップス</label>
+            <select id="cal-tops"><option value="">えらんでください</option>${optionsFor("tops", entry && entry.topsId)}</select>
+          </div>
+          <div class="field">
+            <label for="cal-bottoms">ボトムス</label>
+            <select id="cal-bottoms"><option value="">えらんでください</option>${optionsFor("bottoms", entry && entry.bottomsId)}</select>
+          </div>
+          <div class="field">
+            <label for="cal-outer">アウター</label>
+            <select id="cal-outer"><option value="none">なし</option>${optionsFor("outer", entry && entry.outerId)}</select>
+          </div>
+        </div>
+        <div class="btns">
+          <button class="btn-primary btn-wide" data-act="cal-save">${entry ? "変更を保存" : "記録する"}</button>
+        </div>
+        ${entry ? `<div class="btns"><button class="btn-ghost btn-wide" data-act="cal-cancel">キャンセル</button></div>` : ""}
+      </div>
+    `;
+  }
+
+  /* 着用回数：期間別の回数と「しばらく着ていない服」 */
+  function renderStatsBody(st){
+    const range = st.ui.statsRange;
+    const rangeLabel = { "30": "直近30日", "90": "直近90日", "all": "全期間" }[range];
+
+    // 集計の起点（range 日前の日付キー。all は無制限）
+    let sinceKey = "";
+    if (range !== "all") {
+      const d = new Date();
+      d.setDate(d.getDate() - (Number(range) - 1));
+      sinceKey = dayKey(d.getTime());
+    }
+
+    const counts = new Map();   // id → 期間内の回数
+    const last = new Map();     // id → 最後に着た日時（全期間）
+    const days = new Set();
+    let outerNone = 0;
+    for (const h of st.history) {
+      const ids = [h.topsId, h.bottomsId, h.outerId].filter(Boolean);
+      for (const id of ids) {
+        const prev = last.get(id);
+        if (prev === undefined || h.at > prev) last.set(id, h.at);
+      }
+      const k = dayKey(h.at);
+      if (sinceKey && k < sinceKey) continue;
+      days.add(k);
+      for (const id of ids) counts.set(id, (counts.get(id) || 0) + 1);
+      if (!h.outerId) outerNone++;
+    }
+
+    const rangeTabs = [["30", "30日"], ["90", "90日"], ["all", "全期間"]];
+    const rangeCard = `
+      <div class="card">
+        <div class="tabs" role="tablist">
+          ${rangeTabs.map(([k, label]) => `
+            <button class="tab ${k === range ? "active" : ""}" data-act="stats-range" data-range="${k}" role="tab" aria-selected="${k === range}">${label}</button>
+          `).join("")}
+        </div>
+        <div class="hint" style="margin-top:10px">${rangeLabel}の記録：${days.size} 日分</div>
+      </div>
+    `;
+
+    if (st.history.length === 0) {
+      return rangeCard + `<div class="card"><div class="hint">まだ記録がありません。ホームで「採用」するか、カレンダーから記録すると、ここに集計されます。</div></div>`;
+    }
+
+    // しばらく着ていない服（有効なもの。未着用が先、次に最後に着た日が古い順）
+    const idle = st.wardrobe
+      .filter(x => x.enabled)
+      .sort((a, b) => {
+        const la = last.get(a.id), lb = last.get(b.id);
+        if (la === undefined && lb === undefined) return a.createdAt - b.createdAt;
+        if (la === undefined) return -1;
+        if (lb === undefined) return 1;
+        return la - lb;
+      })
+      .slice(0, 5);
+
+    const idleCard = `
+      <div class="card">
+        <div style="font-weight:900">しばらく着ていない服</div>
+        <div class="hint">有効な服のうち、最後に着てから日がたっている順です。</div>
+        <div class="divider"></div>
+        <div class="stack">
+          ${idle.length === 0
+            ? `<div class="hint">有効な服がありません。</div>`
+            : idle.map(it => {
+                const lt = last.get(it.id);
+                return `
+                  <div class="row">
+                    <div class="left">
+                      ${thumbHtml(it)}
+                      <div class="v">
+                        <div class="name">${escapeHtml(it.name)}</div>
+                        <div class="meta">${escapeHtml(catLabel(it.category))} / ${escapeHtml(it.color)}</div>
+                      </div>
+                    </div>
+                    <span class="badge ${lt === undefined ? "off" : ""}">${escapeHtml(agoLabel(lt))}</span>
+                  </div>
+                `;
+              }).join("")}
+        </div>
+      </div>
+    `;
+
+    // カテゴリ別の着用回数（多い順）
+    const catCards = CATS.map(c => {
+      const items = st.wardrobe
+        .filter(x => x.category === c.key)
+        .sort((a, b) => (counts.get(b.id) || 0) - (counts.get(a.id) || 0) || a.name.localeCompare(b.name, "ja"));
+      const max = Math.max(1, ...items.map(x => counts.get(x.id) || 0));
+      return `
+        <div class="card">
+          <div style="font-weight:900">${escapeHtml(c.label)}</div>
+          <div class="hint">${rangeLabel}の着用回数</div>
+          <div class="divider"></div>
+          <div class="stack">
+            ${items.length === 0
+              ? `<div class="hint">まだありません。</div>`
+              : items.map(it => {
+                  const n = counts.get(it.id) || 0;
+                  return `
+                    <div>
+                      <div class="row">
+                        <div class="left">
+                          ${thumbHtml(it)}
+                          <div class="v">
+                            <div class="name">${escapeHtml(it.name)}${it.enabled ? "" : "（無効）"}</div>
+                            <div class="meta">最終着用：${escapeHtml(agoLabel(last.get(it.id)))}</div>
+                          </div>
+                        </div>
+                        <span class="badge">${n}回</span>
+                      </div>
+                      <div class="bar"><i style="width:${Math.round(n / max * 100)}%"></i></div>
+                    </div>
+                  `;
+                }).join("")}
+            ${c.key === "outer" ? `<div class="hint">アウターなし：${outerNone}回</div>` : ""}
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    return rangeCard + idleCard + catCards;
   }
 
   function renderHistoryLine(label, item, allowNone){
@@ -1328,6 +1860,7 @@ const UI = (() => {
         <div class="row">
           <div class="left">
             <div class="k">${escapeHtml(label)}</div>
+            ${thumbHtml(null)}
             <div class="v">
               <div class="name">${allowNone ? "なし" : "（削除済み）"}</div>
               <div class="meta">-</div>
@@ -1411,7 +1944,10 @@ const UI = (() => {
       <div class="card">
         <div style="font-weight:900">データ管理</div>
         <div class="hint" style="margin-top:6px">
-          端末を変えるとデータは引き継がれません。バックアップは「エクスポート」を使ってください。
+          端末を変えるとデータは引き継がれません。バックアップは「エクスポート」を使ってください（写真も含まれます）。
+        </div>
+        <div class="hint" style="margin-top:6px" id="photo-info">
+          写真：${PhotoStore.count()} 枚（この端末内に保存）${PhotoStore.isPersistent() ? "" : "　※このブラウザでは写真を保存できないため、閉じると消えます。"}
         </div>
 
         <div class="btns" style="margin-top:10px">
@@ -1743,13 +2279,79 @@ const Actions = (() => {
         if (st.ui.lock.bottomsId === id) st.ui.lock.bottomsId = null;
         if (st.ui.lock.outerId   === id) st.ui.lock.outerId   = null;
         st.wardrobe = st.wardrobe.filter(x => x.id !== id);
+        PhotoStore.remove(id);   // 写真も一緒に削除
         Store.save();
         UI.toast("削除しました");
         UI.renderCurrent();
       });
     } else if (act === "edit") {
       openEditDialog(item);
+    } else if (act === "photo") {
+      pickPhoto(id);
     }
+  }
+
+  /* ---- PHOTO ---- */
+  let photoTargetId = null;   // いま写真を選んでいる服のID
+
+  function pickPhoto(id){
+    photoTargetId = id;
+    const input = document.getElementById("photo-file");
+    if (!input) return;
+    input.value = "";
+    input.click();
+  }
+
+  function editPhotoHtml(id){
+    return PhotoStore.has(id)
+      ? `<img class="thumb lg" src="${PhotoStore.get(id)}" alt="">`
+      : `<div class="thumb lg ph" aria-hidden="true">＋</div>`;
+  }
+
+  /** 編集ダイアログが開いていれば、写真のプレビューとボタン状態を更新 */
+  function refreshEditPhoto(id){
+    const prev = document.getElementById("edit-photo-prev");
+    if (prev && prev.dataset.id === id) prev.innerHTML = editPhotoHtml(id);
+    const del = document.querySelector('[data-edit-act="photo-del"]');
+    if (del) del.disabled = !PhotoStore.has(id);
+  }
+
+  async function handlePhotoFile(file){
+    const id = photoTargetId;
+    photoTargetId = null;
+    if (!file || !id) return;
+    if (!Store.get().wardrobe.some(x => x.id === id)) return;
+    UI.toast("写真を処理しています");
+    try {
+      const url = await fileToDataUrl(file);
+      const persisted = await PhotoStore.set(id, url);
+      UI.toast(persisted ? "写真を保存しました" : "写真を保存できませんでした（この端末では一時的な保存のみ）");
+    } catch {
+      UI.toast("写真を読み込めませんでした");
+      return;
+    }
+    UI.renderCurrent();
+    refreshEditPhoto(id);
+  }
+
+  /** サムネイルをタップして拡大表示 */
+  function openPhotoViewer(id){
+    const it = Store.get().wardrobe.find(x => x.id === id);
+    const src = PhotoStore.get(id);
+    if (!it || !src) return;
+    const opened = Modal.open({
+      cardHtml: `
+        <img src="${src}" alt="${escapeHtml(it.name)}" style="width:100%; border-radius:14px; display:block">
+        <div style="font-weight:900; margin-top:10px">${escapeHtml(it.name)}</div>
+        <div class="hint">${escapeHtml(it.color)}</div>
+        <div class="btns"><button class="btn-ghost btn-wide" data-edit-act="close">閉じる</button></div>
+      `,
+    });
+    if (!opened) return;
+    const card = Modal.getCard();
+    card.addEventListener("click", (e) => {
+      if (e.target.closest('[data-edit-act="close"]')) Modal.close();
+    });
   }
 
   function openEditDialog(item){
@@ -1789,6 +2391,16 @@ const Actions = (() => {
               </div>
             </div>
           </div>
+          <div class="field">
+            <label>写真</label>
+            <div class="row">
+              <span id="edit-photo-prev" data-id="${escapeHtml(item.id)}">${editPhotoHtml(item.id)}</span>
+              <div style="display:flex; gap:8px">
+                <button class="btn-ghost btn-small" data-edit-act="photo-pick">選ぶ</button>
+                <button class="btn-danger btn-small" data-edit-act="photo-del" ${PhotoStore.has(item.id) ? "" : "disabled"}>削除</button>
+              </div>
+            </div>
+          </div>
           <button class="btn-primary btn-wide" data-edit-act="save">保存</button>
         </div>
       `,
@@ -1800,6 +2412,18 @@ const Actions = (() => {
     card.addEventListener("click", (e) => {
       const act = e.target.closest("[data-edit-act]")?.dataset.editAct;
       if (!act) return;
+      if (act === "photo-pick") {
+        pickPhoto(item.id);
+        return;
+      }
+      if (act === "photo-del") {
+        PhotoStore.remove(item.id).then(() => {
+          UI.toast("写真を削除しました");
+          UI.renderCurrent();
+          refreshEditPhoto(item.id);
+        });
+        return;
+      }
       if (act === "close") {
         Modal.close();
       } else if (act === "save") {
@@ -1825,14 +2449,112 @@ const Actions = (() => {
   }
 
   /* ---- HISTORY ---- */
-  function handleHistory(act){
+  function handleHistory(act, target){
+    const st = Store.get();
+    const todayK = dayKey(Date.now());
+
     if (act === "clear-history") {
       Modal.confirm("履歴を全消ししますか？").then((ok) => {
         if (!ok) return;
-        const st = Store.get();
         st.history = [];
         Store.save();
         UI.toast("履歴を消しました");
+        UI.renderCurrent();
+      });
+      return;
+    }
+
+    // タブ・集計期間
+    if (act === "hist-tab") {
+      const t = target?.dataset.tab;
+      if (!HISTORY_TABS.includes(t)) return;
+      st.ui.historyTab = t;
+      Cal.edit = false;
+      Store.save();
+      UI.renderCurrent();
+      return;
+    }
+    if (act === "stats-range") {
+      const r = target?.dataset.range;
+      if (!STATS_RANGES.includes(r)) return;
+      st.ui.statsRange = r;
+      Store.save();
+      UI.renderCurrent();
+      return;
+    }
+
+    // カレンダー：月移動・日付選択
+    if (act === "cal-prev" || act === "cal-next") {
+      if (act === "cal-next" && Cal.month >= todayK.slice(0, 7)) return;   // 未来の月へは進まない
+      Cal.month = shiftMonth(Cal.month, act === "cal-prev" ? -1 : 1);
+      Cal.day = "";
+      Cal.edit = false;
+      UI.renderCurrent();
+      return;
+    }
+    if (act === "cal-today") {
+      Cal.month = todayK.slice(0, 7);
+      Cal.day = todayK;
+      Cal.edit = false;
+      UI.renderCurrent();
+      return;
+    }
+    if (act === "cal-day") {
+      const d = target?.dataset.day;
+      if (!d || d > todayK) return;
+      Cal.day = d;
+      Cal.edit = false;
+      UI.renderCurrent();
+      return;
+    }
+    if (act === "cal-edit" || act === "cal-cancel") {
+      Cal.edit = (act === "cal-edit");
+      UI.renderCurrent();
+      return;
+    }
+
+    // カレンダー：選択した日の記録を保存・削除
+    const day = calSelectedDay();
+    if (act === "cal-save") {
+      if (!day || day > todayK) return;
+      const root = document.getElementById("view-history");
+      const topsId    = root.querySelector("#cal-tops")?.value || "";
+      const bottomsId = root.querySelector("#cal-bottoms")?.value || "";
+      const outerSel  = root.querySelector("#cal-outer")?.value || "none";
+      if (!topsId || !bottomsId) {
+        UI.toast("トップスとボトムスをえらんでください");
+        return;
+      }
+      const cat = new Map(st.wardrobe.map(x => [x.id, x.category]));
+      if (cat.get(topsId) !== "tops" || cat.get(bottomsId) !== "bottoms"
+          || (outerSel !== "none" && cat.get(outerSel) !== "outer")) {
+        UI.toast("えらんだ服が見つかりません");
+        return;
+      }
+      const had = st.history.some(h => dayKey(h.at) === day);
+      st.history = st.history.filter(h => dayKey(h.at) !== day);   // 1日1件：その日の記録は置き換える
+      st.history.push({
+        id: generateId(),
+        at: atForDay(day),
+        topsId,
+        bottomsId,
+        outerId: outerSel === "none" ? null : outerSel,
+      });
+      sortHistory(st);   // 過去日の追加でも「直近N件」の並びを保つ
+      Cal.edit = false;
+      Store.save();
+      UI.toast(had ? "記録を変更しました" : "記録しました");
+      UI.renderCurrent();
+      return;
+    }
+    if (act === "cal-del") {
+      if (!day) return;
+      Modal.confirm("この日の記録を削除しますか？").then((ok) => {
+        if (!ok) return;
+        st.history = st.history.filter(h => dayKey(h.at) !== day);
+        Cal.edit = false;
+        Store.save();
+        UI.toast("記録を削除しました");
         UI.renderCurrent();
       });
     }
@@ -1925,7 +2647,9 @@ const Actions = (() => {
     }
     if (act === "export") {
       const st = Store.get();
-      const blob = new Blob([JSON.stringify(st, null, 2)], { type: "application/json" });
+      // 写真もバックアップに含める（服のIDに紐づくものだけ）
+      const payload = { ...st, photos: PhotoStore.exportAll(new Set(st.wardrobe.map(x => x.id))) };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = `zennosuke_outfit_backup_${new Date().toISOString().slice(0, 10)}.json`;
@@ -1942,6 +2666,7 @@ const Actions = (() => {
           UI.toast("リセットに失敗しました");
           return;
         }
+        PhotoStore.clear();   // 写真も初期状態に
         UI.toast("初期データに戻しました");
         UI.renderCurrent();
       });
@@ -1959,6 +2684,15 @@ const Actions = (() => {
         UI.toast(r.reason === "quota" ? "保存容量が上限に達しました" : "保存に失敗しました");
         return;
       }
+      // 写真：バックアップ内の有効なJPEGだけを受け入れ、存在しない服の写真は捨てる
+      const ids = new Set(normalized.wardrobe.map(x => x.id));
+      const incoming = {};
+      if (obj.photos && typeof obj.photos === "object" && !Array.isArray(obj.photos)) {
+        for (const [id, url] of Object.entries(obj.photos)) {
+          if (ids.has(id) && PhotoStore.validDataUrl(url)) incoming[id] = url;
+        }
+      }
+      await PhotoStore.syncTo(ids, incoming);
       UI.toast("インポートしました");
       UI.renderCurrent();
     } catch {
@@ -1974,6 +2708,8 @@ const Actions = (() => {
     handleSettings,
     handleWeatherChange,
     handleFileImport,
+    handlePhotoFile,
+    openPhotoViewer,
   };
 })();
 
@@ -1990,15 +2726,28 @@ function bindDelegatedEvents(){
     // どのビュー内か判定
     if (document.getElementById("view-home").contains(actEl))      { Actions.handleHome(act, actEl); return; }
     if (document.getElementById("view-wardrobe").contains(actEl))  { Actions.handleWardrobe(act, actEl); return; }
-    if (document.getElementById("view-history").contains(actEl))   { Actions.handleHistory(act); return; }
+    if (document.getElementById("view-history").contains(actEl))   { Actions.handleHistory(act, actEl); return; }
     if (document.getElementById("view-settings").contains(actEl))  { Actions.handleSettings(act, actEl); return; }
   });
 
-  // 地名検索：Enter キーでも検索
+  // サムネイルをタップして写真を拡大
+  document.body.addEventListener("click", (e) => {
+    const el = e.target.closest("[data-photo-view]");
+    if (!el || Modal.isOpen()) return;
+    Actions.openPhotoViewer(el.dataset.photoView);
+  });
+
+  // キーボード：地名検索は Enter、role=button の写真枠は Enter/Space で操作
   document.body.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && e.target && e.target.id === "wx-q") {
       e.preventDefault();
       Actions.handleSettings("wx-search", e.target);
+      return;
+    }
+    if ((e.key === "Enter" || e.key === " ") && e.target && e.target.matches
+        && e.target.matches('[role="button"][data-act]')) {
+      e.preventDefault();
+      e.target.click();
     }
   });
 
@@ -2017,6 +2766,11 @@ function bindDelegatedEvents(){
       const f = e.target.files && e.target.files[0];
       Actions.handleFileImport(f);
       e.target.value = "";
+      return;
+    }
+    if (e.target.id === "photo-file") {
+      const f = e.target.files && e.target.files[0];
+      Actions.handlePhotoFile(f);
     }
   });
 
@@ -2036,6 +2790,7 @@ function bindDelegatedEvents(){
       st.ui.currentView = name;
       Store.save();
       UI.renderCurrent();
+      window.scrollTo(0, 0);   // 画面を切り替えたら先頭から表示
       // hashchange 発火は許容（hrefそのまま）
     });
   });
@@ -2081,6 +2836,11 @@ function bindDelegatedEvents(){
   Weather.init();   // 今日の予報が未取得なら取得開始（取得中は候補の作成を待つ）
 
   UI.renderCurrent();
+
+  // 写真は読み込み完了後に反映（1枚でもあればサムネイルつきで再描画）
+  PhotoStore.init().then(() => {
+    if (PhotoStore.count() > 0 && !Modal.isOpen()) UI.renderCurrent();
+  });
 })();
 </script>
 </body>
