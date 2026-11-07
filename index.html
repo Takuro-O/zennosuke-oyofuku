@@ -4,6 +4,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>ぜんのすけ 服コーデ提案</title>
+  <meta name="theme-color" content="#3B82F6" />
+  <meta name="description" content="手持ちの服から、天気に合わせて今日のコーデを提案します。" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="服コーデ" />
   <style>
     :root{
       --bg:#f6f7fb; --card:#fff; --text:#111; --muted:#6b7280; --line:#e5e7eb;
@@ -168,6 +176,8 @@
     .calcell.sel{background:#eff6ff; border-color:var(--brand2); box-shadow:0 0 0 1px var(--brand2) inset}
     .calcell[disabled]{opacity:.35}
     .calblank{min-height:52px}
+    .scenes{display:grid; grid-template-columns:repeat(4, 1fr); gap:6px}
+    .scenes .tab{padding:10px 2px; font-size:13px}
     .dot{width:8px; height:8px; border-radius:50%; background:var(--ok); display:block}
     .calthumb{width:24px; height:24px; border-radius:7px; object-fit:cover; display:block}
     .calmark{height:24px; display:flex; align-items:center; justify-content:center}
@@ -245,6 +255,20 @@ const PHOTO_MAX_CHARS = 400000;    // インポート時に受け付ける1枚�
 const PHOTO_DATAURL_RE = /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/;
 
 /* 履歴の表示 */
+const IDLE_DAYS = 14;               // ホームで「しばらく着ていない」と扱う日数
+const IDLE_HOME_MAX = 3;            // ホームに出す件数
+/* シーン（タグ・名前に含まれる語で判定） */
+const SCENES = [
+  { key: "",       label: "指定なし" },
+  { key: "casual", label: "普段着" },
+  { key: "clean",  label: "きれいめ" },
+  { key: "active", label: "運動" },
+];
+const SCENE_TAGS = {
+  casual: ["casual", "easy", "カジュアル", "普段着", "ラフ"],
+  clean:  ["clean", "formal", "office", "きれいめ", "きれい目", "フォーマル", "オフィス"],
+  active: ["active", "sports", "gym", "運動", "スポーツ", "ジム"],
+};
 const HISTORY_TABS = ["calendar", "list", "stats"];
 const STATS_RANGES = ["30", "90", "all"];
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
@@ -309,6 +333,46 @@ function fmtDate(ts){
 function dayKey(ts){
   const d = new Date(ts);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** 服のタグ・名前が words のいずれかに当てはまるか（英語は完全一致、日本語は名前の部分一致も見る） */
+function itemMatches(item, words){
+  const tags = (item.tags || []).map(t => String(t).toLowerCase());
+  const name = String(item.name || "").toLowerCase();
+  return words.some(w => tags.includes(w) || (!/^[\x00-\x7f]+$/.test(w) && name.includes(w)));
+}
+
+/** 服ID → 最後に着た日時 */
+function lastWornMap(history){
+  const m = new Map();
+  for (const h of history) {
+    for (const id of [h.topsId, h.bottomsId, h.outerId]) {
+      if (!id) continue;
+      const prev = m.get(id);
+      if (prev === undefined || h.at > prev) m.set(id, h.at);
+    }
+  }
+  return m;
+}
+
+/**
+ * しばらく着ていない服（有効なもののみ）。未着用が先、次に最後に着た日が古い順。
+ * minDays 以上着ていない（または未着用）ものだけに絞る。履歴が空なら空配列。
+ */
+function idleItems(st, limit, minDays){
+  if (st.history.length === 0) return [];
+  const last = lastWornMap(st.history);
+  return st.wardrobe
+    .filter(x => x.enabled)
+    .map(it => ({ it, at: last.get(it.id) }))
+    .filter(x => x.at === undefined || daysSince(x.at) >= minDays)
+    .sort((a, b) => {
+      if (a.at === undefined && b.at === undefined) return a.it.createdAt - b.it.createdAt;
+      if (a.at === undefined) return -1;
+      if (b.at === undefined) return 1;
+      return a.at - b.at;
+    })
+    .slice(0, limit);
 }
 
 /** 履歴を日時の昇順に整える（「直近N件」の判定や上限カットが並び順に依存するため） */
@@ -454,6 +518,7 @@ const Store = (() => {
         candsWx: "",       // 候補を作ったときの天気の区分（変わったら候補を作り直す）
         historyTab: "calendar",
         statsRange: "30",
+        scene: "",         // ""=指定なし / casual / clean / active
         currentView: "home",
         wardrobeTab: "tops",
       },
@@ -555,6 +620,7 @@ const Store = (() => {
         candsWx: typeof rawUi.candsWx === "string" ? rawUi.candsWx : "",
         historyTab: HISTORY_TABS.includes(rawUi.historyTab) ? rawUi.historyTab : "calendar",
         statsRange: STATS_RANGES.includes(rawUi.statsRange) ? rawUi.statsRange : "30",
+        scene: SCENES.some(x => x.key === rawUi.scene) ? rawUi.scene : "",
         cands: Array.isArray(rawUi.cands)
           ? rawUi.cands
               .filter(c => c && typeof c.topsId === "string" && typeof c.bottomsId === "string")
@@ -831,9 +897,7 @@ const Weather = (() => {
   }
 
   function hasTag(item, group){
-    const tags = (item.tags || []).map(t => String(t).toLowerCase());
-    const name = String(item.name || "").toLowerCase();
-    return WX_TAGS[group].some(w => tags.includes(w) || (!/^[\x00-\x7f]+$/.test(w) && name.includes(w)));
+    return itemMatches(item, WX_TAGS[group]);
   }
 
   /** 服1点の選ばれやすさの係数（タグ・名前なし=1） */
@@ -1079,6 +1143,14 @@ const Suggest = (() => {
     return true;
   }
 
+  /** シーン選択時：合う服は選ばれやすく(×3)、他のシーン向けの服は選ばれにくく(×0.25)。タグなしは変えない */
+  function sceneFactor(item, scene){
+    if (!scene || !SCENE_TAGS[scene]) return 1;
+    if (itemMatches(item, SCENE_TAGS[scene])) return 3;
+    const other = Object.keys(SCENE_TAGS).some(k => k !== scene && itemMatches(item, SCENE_TAGS[k]));
+    return other ? 0.25 : 1;
+  }
+
   function toCand(o){
     return { topsId: o.tops.id, bottomsId: o.bottoms.id, outerId: o.outer ? o.outer.id : null };
   }
@@ -1112,9 +1184,10 @@ const Suggest = (() => {
 
     // 天気連動：気温帯に応じて服の重みとアウターなしの重みを調整（天気がなければ従来どおり）
     const wx = Weather.current();
+    const scene = state.ui.scene || "";
     const weightOf = (it) => {
       const base = (it.priority || 3) ** 2;
-      return base * penaltyFor(it.id, recentMap) * (wx ? Weather.factor(it, wx) : 1);
+      return base * penaltyFor(it.id, recentMap) * (wx ? Weather.factor(it, wx) : 1) * sceneFactor(it, scene);
     };
     // アウターなしの重み：天気があれば目標確率から逆算、なければ従来どおり 0.8
     const noneWeight = wx
@@ -1325,6 +1398,35 @@ const UI = (() => {
       return opts.join("");
     };
 
+    // しばらく着ていない服（履歴があるときだけ）
+    const idleList = idleItems(st, IDLE_HOME_MAX, IDLE_DAYS);
+    const lastAll = lastWornMap(st.history);
+    const idleCard = idleList.length === 0 ? "" : `
+      <div class="card" id="idle-card">
+        <div style="font-weight:900">しばらく着ていない服</div>
+        <div class="hint">「使う」を押すと、その服をロックして候補を作り直します。</div>
+        <div class="divider"></div>
+        <div class="stack">
+          ${idleList.map(({ it, at }) => `
+            <div class="row">
+              <div class="left">
+                ${thumbHtml(it)}
+                <div class="v">
+                  <div class="name">${escapeHtml(it.name)}</div>
+                  <div class="meta">${escapeHtml(catLabel(it.category))} ・ ${escapeHtml(agoLabel(lastAll.get(it.id)))}</div>
+                </div>
+              </div>
+              <button class="btn-ghost btn-small" data-act="use-idle" data-id="${escapeHtml(it.id)}" aria-label="${escapeHtml(it.name)}を使う">使う</button>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    `;
+
+    // シーン（選んだシーンに合うタグの服が1点もなければ案内を出す）
+    const scene = st.ui.scene || "";
+    const sceneHasMatch = !scene || enabled.some(x => itemMatches(x, SCENE_TAGS[scene]));
+
     root.innerHTML = `
       ${weatherCard}
       ${todayCard}
@@ -1339,7 +1441,19 @@ const UI = (() => {
 
         <div class="divider"></div>
 
-        <div class="grid2">
+        <div class="field">
+          <label>シーン</label>
+          <div class="scenes" role="group" aria-label="シーン">
+            ${SCENES.map(sc => `
+              <button class="tab ${sc.key === scene ? "active" : ""}" data-act="scene" data-scene="${sc.key}" aria-pressed="${sc.key === scene}">${sc.label}</button>
+            `).join("")}
+          </div>
+          <div class="hint">${sceneHasMatch
+            ? "タグで判定：普段着=casual・easy ／ きれいめ=clean ／ 運動=active・sports"
+            : "このシーンに合うタグの服がないため、通常どおり選びます。服のタグに clean などを付けてください。"}</div>
+        </div>
+
+        <div class="grid2" style="margin-top:12px">
           <div class="field">
             <label for="lock-tops">トップス（ロック）</label>
             <select id="lock-tops" data-lock="topsId">${buildOptions(tops, "固定しない")}</select>
@@ -1361,6 +1475,7 @@ const UI = (() => {
       </div>
 
       <div class="stack" id="suggestion-list"></div>
+      ${idleCard}
     `;
 
     // select の初期値反映
@@ -1775,16 +1890,7 @@ const UI = (() => {
     }
 
     // しばらく着ていない服（有効なもの。未着用が先、次に最後に着た日が古い順）
-    const idle = st.wardrobe
-      .filter(x => x.enabled)
-      .sort((a, b) => {
-        const la = last.get(a.id), lb = last.get(b.id);
-        if (la === undefined && lb === undefined) return a.createdAt - b.createdAt;
-        if (la === undefined) return -1;
-        if (lb === undefined) return 1;
-        return la - lb;
-      })
-      .slice(0, 5);
+    const idle = idleItems(st, 5, 0).map(x => x.it);
 
     const idleCard = `
       <div class="card">
@@ -2139,6 +2245,26 @@ const Actions = (() => {
 
     if (act === "wx-refresh") {
       handleWeather(act, target);
+      return;
+    }
+    if (act === "scene") {
+      const sc = target?.dataset.scene ?? "";
+      if (!SCENES.some(x => x.key === sc) || sc === (st.ui.scene || "")) return;
+      st.ui.scene = sc;
+      st.ui.cands = [];   // シーンが変わったら候補を作り直す
+      Store.save();
+      UI.renderCurrent();
+      return;
+    }
+    if (act === "use-idle") {
+      const it = st.wardrobe.find(x => x.id === target?.dataset.id && x.enabled);
+      if (!it) return;
+      const key = { tops: "topsId", bottoms: "bottomsId", outer: "outerId" }[it.category];
+      st.ui.lock[key] = it.id;   // その服をロックして、候補を条件に合わせて入れ替える
+      Store.save();
+      UI.toast(`${it.name}をロックしました`);
+      UI.renderCurrent();
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     if (act === "resuggest") {
@@ -2841,6 +2967,17 @@ function bindDelegatedEvents(){
   PhotoStore.init().then(() => {
     if (PhotoStore.count() > 0 && !Modal.isOpen()) UI.renderCurrent();
   });
+
+  // PWA：オフラインでも開けるように（http(s) のときだけ登録）
+  if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
+    const hadController = !!navigator.serviceWorker.controller;
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    });
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (hadController) UI.toast("アプリを更新しました。再読み込みで反映されます");
+    });
+  }
 })();
 </script>
 </body>
