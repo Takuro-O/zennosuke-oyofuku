@@ -1404,7 +1404,6 @@ const UI = (() => {
     const idleCard = idleList.length === 0 ? "" : `
       <div class="card" id="idle-card">
         <div style="font-weight:900">しばらく着ていない服</div>
-        <div class="hint">「使う」を押すと、その服をロックして候補を作り直します。</div>
         <div class="divider"></div>
         <div class="stack">
           ${idleList.map(({ it, at }) => `
@@ -1434,7 +1433,7 @@ const UI = (() => {
         <div class="row">
           <div>
             <div style="font-weight:900; font-size:16px">${today ? "他の候補" : "今日の提案"}</div>
-            <div class="hint">ロック・優先度・直近履歴で調整します。除外: ${excludedCount} 件（日付が変わるとリセット）</div>
+            ${excludedCount > 0 ? `<div class="hint">除外 ${excludedCount}件</div>` : ""}
           </div>
           <button class="btn-ghost btn-small" data-act="resuggest" aria-label="再提案">再提案</button>
         </div>
@@ -1448,9 +1447,7 @@ const UI = (() => {
               <button class="tab ${sc.key === scene ? "active" : ""}" data-act="scene" data-scene="${sc.key}" aria-pressed="${sc.key === scene}">${sc.label}</button>
             `).join("")}
           </div>
-          <div class="hint">${sceneHasMatch
-            ? "タグで判定：普段着=casual・easy ／ きれいめ=clean ／ 運動=active・sports"
-            : "このシーンに合うタグの服がないため、通常どおり選びます。服のタグに clean などを付けてください。"}</div>
+          ${sceneHasMatch ? "" : `<div class="hint">合うタグの服がありません（casual・clean・active など）</div>`}
         </div>
 
         <div class="grid2" style="margin-top:12px">
@@ -1470,7 +1467,7 @@ const UI = (() => {
         </div>
 
         <div class="btns">
-          <button class="btn-ghost btn-wide" data-act="clear-excluded" ${excludedCount === 0 ? "disabled" : ""}>除外クリア</button>
+          <button class="btn-ghost btn-wide" data-act="clear-excluded" ${excludedCount === 0 ? "disabled" : ""}>除外を戻す</button>
         </div>
       </div>
 
@@ -1494,7 +1491,7 @@ const UI = (() => {
         <div class="card">
           <div style="font-weight:900">提案が作れませんでした</div>
           <div class="hint" style="margin-top:6px">
-            トップスとボトムスを1点以上「有効」にしてください。ワードローブタブで切り替えられます。
+            トップスとボトムスを1点以上「有効」にしてください。
           </div>
         </div>
       `;
@@ -1522,7 +1519,7 @@ const UI = (() => {
               : `<button class="btn-primary btn-wide" data-act="adopt" aria-label="このコーデを採用">${today ? "これに変更" : "採用"}</button>`}
           </div>
           <div class="btns">
-            <button class="btn-ghost btn-wide" data-act="exclude" aria-label="この候補を除外して入れ替え">この候補を除外して入れ替え</button>
+            <button class="btn-ghost btn-wide" data-act="exclude" aria-label="この候補を入れ替え">入れ替え</button>
           </div>
         </div>
       `;
@@ -1575,8 +1572,7 @@ const UI = (() => {
     root.innerHTML = `
       <div class="card">
         <div style="font-weight:900; font-size:16px">ワードローブ</div>
-        <div class="hint">名前・色・タグは「編集」から変更できます。(${escapeHtml(catLabel(tab))} / 有効: ${enabledCount}点)</div>
-        <div class="hint" style="margin-top:4px">天気連動のタグ例：warm・厚手（寒い日）／ summer・薄手（暑い日）／ spring・autumn ／ rain・防水（雨の日）</div>
+        <div class="hint">${escapeHtml(catLabel(tab))} ・ 有効 ${enabledCount}点</div>
         <div style="margin-top:12px" class="tabs" id="wardrobe-tabs" role="tablist">
           ${CATS.map(c => `
             <button class="tab ${c.key === tab ? "active" : ""}" data-tab="${escapeHtml(c.key)}" role="tab" aria-selected="${c.key === tab}">${escapeHtml(c.label)}</button>
@@ -1597,7 +1593,7 @@ const UI = (() => {
           </div>
           <div class="field">
             <label for="add-tags">タグ（任意、カンマ区切り）</label>
-            <input id="add-tags" placeholder="例：casual,warm" />
+            <input id="add-tags" placeholder="例：casual,warm,rain" />
           </div>
           <div class="grid2">
             <div class="field">
@@ -1607,10 +1603,9 @@ const UI = (() => {
               </select>
             </div>
             <div class="field">
-              <label for="add-enabled">有効</label>
+              <label for="add-enabled">有効にする</label>
               <div class="switch">
                 <input type="checkbox" id="add-enabled" checked />
-                <span class="hint">有効にする</span>
               </div>
             </div>
           </div>
@@ -1698,7 +1693,7 @@ const UI = (() => {
     return `
       <div class="stack" id="hist-list">
         ${rows.length === 0
-          ? `<div class="card"><div class="hint">まだ記録がありません。ホームで「採用」するか、カレンダーから記録してください。</div></div>`
+          ? `<div class="card"><div class="hint">まだ記録がありません</div></div>`
           : rows.map(h => {
               const t = byId.get(h.topsId);
               const b = byId.get(h.bottomsId);
@@ -1775,7 +1770,7 @@ const UI = (() => {
       </div>
       ${selDay
         ? renderDayDetail(st, selDay, byDay.get(selDay), byId)
-        : `<div class="card"><div class="hint">日付をえらぶと、その日のコーデを確認・記録できます。</div></div>`}
+        : `<div class="card"><div class="hint">日付を選んでください</div></div>`}
     `;
   }
 
@@ -1820,15 +1815,14 @@ const UI = (() => {
           <div style="font-weight:900; font-size:15px">${escapeHtml(title)}</div>
           <span class="badge">${entry ? "変更中" : "記録なし"}</span>
         </div>
-        <div class="hint" style="margin-top:6px">${entry ? "この日に着たコーデを変更できます。" : "この日に着たコーデを記録できます。"}</div>
         <div class="stack" style="margin-top:10px">
           <div class="field">
             <label for="cal-tops">トップス</label>
-            <select id="cal-tops"><option value="">えらんでください</option>${optionsFor("tops", entry && entry.topsId)}</select>
+            <select id="cal-tops"><option value="">選んでください</option>${optionsFor("tops", entry && entry.topsId)}</select>
           </div>
           <div class="field">
             <label for="cal-bottoms">ボトムス</label>
-            <select id="cal-bottoms"><option value="">えらんでください</option>${optionsFor("bottoms", entry && entry.bottomsId)}</select>
+            <select id="cal-bottoms"><option value="">選んでください</option>${optionsFor("bottoms", entry && entry.bottomsId)}</select>
           </div>
           <div class="field">
             <label for="cal-outer">アウター</label>
@@ -1886,7 +1880,7 @@ const UI = (() => {
     `;
 
     if (st.history.length === 0) {
-      return rangeCard + `<div class="card"><div class="hint">まだ記録がありません。ホームで「採用」するか、カレンダーから記録すると、ここに集計されます。</div></div>`;
+      return rangeCard + `<div class="card"><div class="hint">まだ記録がありません</div></div>`;
     }
 
     // しばらく着ていない服（有効なもの。未着用が先、次に最後に着た日が古い順）
@@ -1894,8 +1888,7 @@ const UI = (() => {
 
     const idleCard = `
       <div class="card">
-        <div style="font-weight:900">しばらく着ていない服</div>
-        <div class="hint">有効な服のうち、最後に着てから日がたっている順です。</div>
+        <div style="font-weight:900">着ていない服</div>
         <div class="divider"></div>
         <div class="stack">
           ${idle.length === 0
@@ -2000,8 +1993,7 @@ const UI = (() => {
       <div class="card">
         <div style="font-weight:900">天気連動</div>
         <div class="hint" style="margin-top:6px">
-          今日の気温・降水確率に合わせて、アウターの有無や服の選ばれやすさを調整します。
-          送信されるのは地域の座標だけで、天気の取得（Open-Meteo）にのみ使います。
+          気温と降水確率に合わせて提案します。送信するのは地域の座標だけです（Open-Meteo）。
         </div>
 
         <div class="switch" style="margin-top:12px">
@@ -2015,9 +2007,9 @@ const UI = (() => {
         <div class="divider"></div>
 
         <div class="field">
-          <label for="wx-preset">主要都市からえらぶ</label>
+          <label for="wx-preset">主要都市から選ぶ</label>
           <select id="wx-preset">
-            <option value="">地域をえらぶ…</option>
+            <option value="">地域を選ぶ…</option>
             ${WX_PRESETS.map((p, i) => `<option value="${i}">${escapeHtml(p.label)}</option>`).join("")}
           </select>
         </div>
@@ -2276,14 +2268,13 @@ const Actions = (() => {
       const todayK = dayKey(Date.now());
       st.history = st.history.filter(h => dayKey(h.at) !== todayK);
       Store.save();
-      UI.toast("今日の採用を取り消しました");
+      UI.toast("記録を取り消しました");
       UI.renderCurrent();
       return;
     }
     if (act === "clear-excluded") {
       st.ui.excluded = [];
       Store.save();
-      UI.toast("除外をクリアしました");
       UI.renderCurrent();
       return;
     }
@@ -2304,7 +2295,7 @@ const Actions = (() => {
             && had.bottomsId === o.bottoms.id
             && (had.outerId || null) === (o.outer ? o.outer.id : null);
           if (sameOutfit) {
-            UI.toast("すでに採用済みです");
+            UI.toast("記録済みです");
             return;
           }
         }
@@ -2317,12 +2308,11 @@ const Actions = (() => {
           outerId: o.outer ? o.outer.id : null,
         });
         Store.save();
-        UI.toast(had ? "今日のコーデを変更しました" : "採用しました");
+        UI.toast(had ? "記録を変更しました" : "記録しました");
       } else {
         // 除外した1件だけが入れ替わる（他の候補は維持）
         st.ui.excluded = Array.from(new Set([...(st.ui.excluded || []), k]));
         Store.save();
-        UI.toast("除外して入れ替えました");
       }
       UI.renderCurrent();
     }
@@ -2371,7 +2361,6 @@ const Actions = (() => {
         updatedAt: now,
       });
       Store.save();
-      UI.toast("追加しました");
       UI.renderCurrent();
       return;
     }
@@ -2396,7 +2385,6 @@ const Actions = (() => {
       item.enabled = !item.enabled;
       item.updatedAt = Date.now();
       Store.save();
-      UI.toast(item.enabled ? "有効にしました" : "無効にしました");
       UI.renderCurrent();
     } else if (act === "delete") {
       Modal.confirm(`「${item.name}」を削除しますか？`).then((ok) => {
@@ -2407,7 +2395,6 @@ const Actions = (() => {
         st.wardrobe = st.wardrobe.filter(x => x.id !== id);
         PhotoStore.remove(id);   // 写真も一緒に削除
         Store.save();
-        UI.toast("削除しました");
         UI.renderCurrent();
       });
     } else if (act === "edit") {
@@ -2510,10 +2497,9 @@ const Actions = (() => {
               </select>
             </div>
             <div class="field">
-              <label for="edit-enabled">有効</label>
+              <label for="edit-enabled">有効にする</label>
               <div class="switch">
                 <input type="checkbox" id="edit-enabled" ${item.enabled ? "checked" : ""} />
-                <span class="hint">有効にする</span>
               </div>
             </div>
           </div>
@@ -2648,13 +2634,13 @@ const Actions = (() => {
       const bottomsId = root.querySelector("#cal-bottoms")?.value || "";
       const outerSel  = root.querySelector("#cal-outer")?.value || "none";
       if (!topsId || !bottomsId) {
-        UI.toast("トップスとボトムスをえらんでください");
+        UI.toast("トップスとボトムスを選んでください");
         return;
       }
       const cat = new Map(st.wardrobe.map(x => [x.id, x.category]));
       if (cat.get(topsId) !== "tops" || cat.get(bottomsId) !== "bottoms"
           || (outerSel !== "none" && cat.get(outerSel) !== "outer")) {
-        UI.toast("えらんだ服が見つかりません");
+        UI.toast("選んだ服が見つかりません");
         return;
       }
       const had = st.history.some(h => dayKey(h.at) === day);
@@ -2736,7 +2722,7 @@ const Actions = (() => {
       const out = document.getElementById("wx-results");   // 検索中に画面を移動していたら何もしない
       if (!out) return;
       out.innerHTML = wxResults.length === 0
-        ? `<div class="hint">見つかりませんでした。「松本市」のように市区町村名で試すか、上の一覧からえらんでください。</div>`
+        ? `<div class="hint">見つかりませんでした。「松本市」のように市区町村名で試すか、上の一覧から選んでください。</div>`
         : wxResults.map((r, i) => `
             <button class="btn-ghost btn-small btn-wide" style="text-align:left" data-act="wx-pick" data-idx="${i}">
               ${escapeHtml(r.label)}${r.sub ? `<span class="hint">　${escapeHtml(r.sub)}</span>` : ""}
@@ -2757,7 +2743,6 @@ const Actions = (() => {
     if (target.id === "wx-enabled") {
       Weather.setEnabled(target.checked);
       UI.refreshWeatherStatus();
-      UI.toast(target.checked ? "天気連動をオンにしました" : "天気連動をオフにしました");
     } else if (target.id === "wx-preset") {
       const p = WX_PRESETS[Number(target.value)];
       target.value = "";
@@ -2785,7 +2770,7 @@ const Actions = (() => {
     } else if (act === "import") {
       document.getElementById("import-file")?.click();
     } else if (act === "reset") {
-      Modal.confirm("全リセットしますか？（ワードローブ・履歴・ロック等が消えます）").then((ok) => {
+      Modal.confirm("全データを削除しますか？").then((ok) => {
         if (!ok) return;
         const r = Store.reset();
         if (!r.ok) {
