@@ -269,7 +269,7 @@ const SCENE_TAGS = {
   clean:  ["clean", "formal", "office", "きれいめ", "きれい目", "フォーマル", "オフィス"],
   active: ["active", "sports", "gym", "運動", "スポーツ", "ジム"],
 };
-const HISTORY_TABS = ["calendar", "list", "stats"];
+const HISTORY_TABS = ["calendar", "stats"];
 const STATS_RANGES = ["30", "90", "all"];
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -1186,7 +1186,7 @@ const Suggest = (() => {
     const wx = Weather.current();
     const scene = state.ui.scene || "";
     const weightOf = (it) => {
-      const base = (it.priority || 3) ** 2;
+      const base = 9;   // 優先度は使わない（全アイテム同じ重み）
       return base * penaltyFor(it.id, recentMap) * (wx ? Weather.factor(it, wx) : 1) * sceneFactor(it, scene);
     };
     // アウターなしの重み：天気があれば目標確率から逆算、なければ従来どおり 0.8
@@ -1355,7 +1355,6 @@ const UI = (() => {
     }
 
     const lock = st.ui.lock;
-    const excludedCount = (st.ui.excluded || []).length;
 
     // 今日すでに採用したコーデ（履歴から日付で判定）
     const today = todaysEntry(st.history);
@@ -1389,14 +1388,22 @@ const UI = (() => {
     const bottoms = enabled.filter(x => x.category === "bottoms");
     const outers  = enabled.filter(x => x.category === "outer");
 
-    const buildOptions = (items, placeholder, extra = "") => {
-      const opts = [`<option value="">${escapeHtml(placeholder)}</option>`];
-      if (extra) opts.push(extra);
-      for (const it of items) {
-        opts.push(`<option value="${escapeHtml(it.id)}">${escapeHtml(it.name)} (${escapeHtml(it.color)})</option>`);
-      }
-      return opts.join("");
-    };
+    // ロック中の服（✕で解除）
+    const lockLabels = [
+      ["topsId", lock.topsId && byIdAll.get(lock.topsId)?.name],
+      ["bottomsId", lock.bottomsId && byIdAll.get(lock.bottomsId)?.name],
+      ["outerId", lock.outerId === "none" ? "アウターなし" : (lock.outerId && byIdAll.get(lock.outerId)?.name)],
+    ].filter(([, name]) => name);
+    const lockChips = lockLabels.length === 0 ? "" : `
+      <div class="field" style="margin-top:12px">
+        <label>ロック中</label>
+        <div class="chipRow">
+          ${lockLabels.map(([key, name]) => `
+            <button class="btn-ghost btn-small" data-act="unlock" data-key="${key}" aria-label="${escapeHtml(name)}のロックを解除">${escapeHtml(name)} ✕</button>
+          `).join("")}
+        </div>
+      </div>
+    `;
 
     // しばらく着ていない服（履歴があるときだけ）
     const idleList = idleItems(st, IDLE_HOME_MAX, IDLE_DAYS);
@@ -1433,7 +1440,7 @@ const UI = (() => {
         <div class="row">
           <div>
             <div style="font-weight:900; font-size:16px">${today ? "他の候補" : "今日の提案"}</div>
-            ${excludedCount > 0 ? `<div class="hint">除外 ${excludedCount}件</div>` : ""}
+            
           </div>
           <button class="btn-ghost btn-small" data-act="resuggest" aria-label="再提案">再提案</button>
         </div>
@@ -1450,35 +1457,12 @@ const UI = (() => {
           ${sceneHasMatch ? "" : `<div class="hint">合うタグの服がありません（casual・clean・active など）</div>`}
         </div>
 
-        <div class="grid2" style="margin-top:12px">
-          <div class="field">
-            <label for="lock-tops">トップス（ロック）</label>
-            <select id="lock-tops" data-lock="topsId">${buildOptions(tops, "固定しない")}</select>
-          </div>
-          <div class="field">
-            <label for="lock-bottoms">ボトムス（ロック）</label>
-            <select id="lock-bottoms" data-lock="bottomsId">${buildOptions(bottoms, "固定しない")}</select>
-          </div>
-        </div>
-
-        <div class="field" style="margin-top:10px">
-          <label for="lock-outer">アウター（ロック）</label>
-          <select id="lock-outer" data-lock="outerId">${buildOptions(outers, "固定しない", `<option value="none">「なし」を固定</option>`)}</select>
-        </div>
-
-        <div class="btns">
-          <button class="btn-ghost btn-wide" data-act="clear-excluded" ${excludedCount === 0 ? "disabled" : ""}>除外を戻す</button>
-        </div>
+        ${lockChips}
       </div>
 
       <div class="stack" id="suggestion-list"></div>
       ${idleCard}
     `;
-
-    // select の初期値反映
-    root.querySelector("#lock-tops").value    = lock.topsId || "";
-    root.querySelector("#lock-bottoms").value = lock.bottomsId || "";
-    root.querySelector("#lock-outer").value   = (lock.outerId === null ? "" : lock.outerId) || "";
 
     // 提案リスト描画
     const list = root.querySelector("#suggestion-list");
@@ -1553,7 +1537,6 @@ const UI = (() => {
             <div class="meta">${escapeHtml(item.color)} / タグ: ${escapeHtml(tagsText)}</div>
           </div>
         </div>
-        <span class="badge ${item.enabled ? "on" : "off"}" title="優先度">p${escapeHtml(item.priority)}</span>
       </div>
     `;
   }
@@ -1595,13 +1578,7 @@ const UI = (() => {
             <label for="add-tags">タグ（任意、カンマ区切り）</label>
             <input id="add-tags" placeholder="例：casual,warm,rain" />
           </div>
-          <div class="grid2">
-            <div class="field">
-              <label for="add-priority">優先度（1-5）</label>
-              <select id="add-priority">
-                ${[1,2,3,4,5].map(v => `<option value="${v}" ${v === 3 ? "selected" : ""}>${v}</option>`).join("")}
-              </select>
-            </div>
+          <div>
             <div class="field">
               <label for="add-enabled">有効にする</label>
               <div class="switch">
@@ -1636,7 +1613,6 @@ const UI = (() => {
                     </div>
                     <div class="chipRow">
                       <span class="badge ${it.enabled ? "on" : "off"}">${it.enabled ? "有効" : "無効"}</span>
-                      <span class="badge">p${escapeHtml(it.priority)}</span>
                     </div>
                   </div>
                   <div class="actions">
@@ -1658,7 +1634,7 @@ const UI = (() => {
     const st = Store.get();
     const root = views.history;
     const tab = st.ui.historyTab;
-    const tabs = [["calendar", "カレンダー"], ["list", "リスト"], ["stats", "着用回数"]];
+    const tabs = [["calendar", "カレンダー"], ["stats", "着用回数"]];
 
     const head = `
       <div class="card">
@@ -1667,9 +1643,7 @@ const UI = (() => {
             <div style="font-weight:900; font-size:16px">履歴</div>
             <div class="hint">${st.history.length} 件の記録</div>
           </div>
-          ${tab === "list"
-            ? `<button class="btn-danger btn-small" data-act="clear-history" ${st.history.length ? "" : "disabled"}>全消し</button>`
-            : ""}
+          <button class="btn-danger btn-small" data-act="clear-history" ${st.history.length ? "" : "disabled"}>全消し</button>
         </div>
         <div style="margin-top:12px" class="tabs" role="tablist">
           ${tabs.map(([k, label]) => `
@@ -1681,38 +1655,8 @@ const UI = (() => {
 
     let body;
     if (tab === "calendar") body = renderCalendarBody(st);
-    else if (tab === "stats") body = renderStatsBody(st);
-    else body = renderListBody(st);
+    else body = renderStatsBody(st);
     root.innerHTML = head + body;
-  }
-
-  /* リスト：新しい順 */
-  function renderListBody(st){
-    const byId = new Map(st.wardrobe.map(x => [x.id, x]));
-    const rows = [...st.history].reverse().slice(0, HISTORY_DISPLAY_MAX);
-    return `
-      <div class="stack" id="hist-list">
-        ${rows.length === 0
-          ? `<div class="card"><div class="hint">まだ記録がありません</div></div>`
-          : rows.map(h => {
-              const t = byId.get(h.topsId);
-              const b = byId.get(h.bottomsId);
-              const o = h.outerId ? byId.get(h.outerId) : null;
-              return `
-                <div class="card">
-                  <div class="hint">${escapeHtml(fmtDate(h.at))}</div>
-                  <div style="margin-top:10px" class="stack">
-                    ${renderHistoryLine("トップス", t, false)}
-                    ${renderHistoryLine("ボトムス", b, false)}
-                    ${renderHistoryLine("アウター", o, true)}
-                  </div>
-                </div>
-              `;
-            }).join("")
-        }
-        ${st.history.length > HISTORY_DISPLAY_MAX ? `<div class="hint">最新 ${HISTORY_DISPLAY_MAX} 件まで表示しています</div>` : ""}
-      </div>
-    `;
   }
 
   /* カレンダー：月表示＋選択した日の記録（追加・変更・削除） */
@@ -1839,8 +1783,8 @@ const UI = (() => {
 
   /* 着用回数：期間別の回数と「しばらく着ていない服」 */
   function renderStatsBody(st){
-    const range = st.ui.statsRange;
-    const rangeLabel = { "30": "直近30日", "90": "直近90日", "all": "全期間" }[range];
+    const range = "30";
+    const rangeLabel = "直近30日";
 
     // 集計の起点（range 日前の日付キー。all は無制限）
     let sinceKey = "";
@@ -1867,15 +1811,9 @@ const UI = (() => {
       if (!h.outerId) outerNone++;
     }
 
-    const rangeTabs = [["30", "30日"], ["90", "90日"], ["all", "全期間"]];
     const rangeCard = `
       <div class="card">
-        <div class="tabs" role="tablist">
-          ${rangeTabs.map(([k, label]) => `
-            <button class="tab ${k === range ? "active" : ""}" data-act="stats-range" data-range="${k}" role="tab" aria-selected="${k === range}">${label}</button>
-          `).join("")}
-        </div>
-        <div class="hint" style="margin-top:10px">${rangeLabel}の記録：${days.size} 日分</div>
+        <div class="hint">${rangeLabel}の記録：${days.size} 日分</div>
       </div>
     `;
 
@@ -2272,8 +2210,10 @@ const Actions = (() => {
       UI.renderCurrent();
       return;
     }
-    if (act === "clear-excluded") {
-      st.ui.excluded = [];
+    if (act === "unlock") {
+      const key = target?.dataset.key;
+      if (!["topsId", "bottomsId", "outerId"].includes(key)) return;
+      st.ui.lock[key] = null;
       Store.save();
       UI.renderCurrent();
       return;
@@ -2318,20 +2258,6 @@ const Actions = (() => {
     }
   }
 
-  function handleHomeChange(target){
-    const lockField = target.dataset.lock;
-    if (!lockField) return;
-    const st = Store.get();
-    const v = target.value;
-    if (lockField === "outerId") {
-      st.ui.lock.outerId = v ? v : null;
-    } else {
-      st.ui.lock[lockField] = v || null;
-    }
-    Store.save();
-    UI.renderCurrent();
-  }
-
   /* ---- WARDROBE ---- */
   function handleWardrobe(act, target){
     const st = Store.get();
@@ -2341,7 +2267,7 @@ const Actions = (() => {
       const name     = root.querySelector("#add-name").value.trim();
       const color    = root.querySelector("#add-color").value.trim();
       const tagsText = root.querySelector("#add-tags").value;
-      const priority = Number(root.querySelector("#add-priority").value) || 3;
+      const priority = 3;
       const enabled  = root.querySelector("#add-enabled").checked;
 
       if (!name || !color) {
@@ -2489,13 +2415,7 @@ const Actions = (() => {
             <label for="edit-tags">タグ（カンマ区切り）</label>
             <input id="edit-tags" value="${escapeHtml(tagsText)}" />
           </div>
-          <div class="grid2">
-            <div class="field">
-              <label for="edit-priority">優先度</label>
-              <select id="edit-priority">
-                ${[1,2,3,4,5].map(v => `<option value="${v}" ${v === item.priority ? "selected" : ""}>${v}</option>`).join("")}
-              </select>
-            </div>
+          <div>
             <div class="field">
               <label for="edit-enabled">有効にする</label>
               <div class="switch">
@@ -2549,7 +2469,6 @@ const Actions = (() => {
         item.name  = name;
         item.color = color;
         item.tags  = card.querySelector("#edit-tags").value.split(",").map(s => s.trim()).filter(Boolean);
-        item.priority = Number(card.querySelector("#edit-priority").value) || 3;
         item.enabled  = card.querySelector("#edit-enabled").checked;
         item.updatedAt = Date.now();
         Store.save();
@@ -2586,15 +2505,6 @@ const Actions = (() => {
       UI.renderCurrent();
       return;
     }
-    if (act === "stats-range") {
-      const r = target?.dataset.range;
-      if (!STATS_RANGES.includes(r)) return;
-      st.ui.statsRange = r;
-      Store.save();
-      UI.renderCurrent();
-      return;
-    }
-
     // カレンダー：月移動・日付選択
     if (act === "cal-prev" || act === "cal-next") {
       if (act === "cal-next" && Cal.month >= todayK.slice(0, 7)) return;   // 未来の月へは進まない
@@ -2813,7 +2723,6 @@ const Actions = (() => {
 
   return {
     handleHome,
-    handleHomeChange,
     handleWardrobe,
     handleHistory,
     handleSettings,
@@ -2864,11 +2773,6 @@ function bindDelegatedEvents(){
 
   // change：ロック select・ワードローブタブ・ファイル選択
   document.body.addEventListener("change", (e) => {
-    const homeRoot = document.getElementById("view-home");
-    if (homeRoot.contains(e.target) && e.target.matches("select[data-lock]")) {
-      Actions.handleHomeChange(e.target);
-      return;
-    }
     if (e.target.id === "wx-enabled" || e.target.id === "wx-preset") {
       Actions.handleWeatherChange(e.target);
       return;

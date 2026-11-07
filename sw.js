@@ -1,6 +1,6 @@
 // ぜんのすけ 服コーデ提案 - Service Worker
 // 更新時は CACHE のバージョンを上げる（古いキャッシュは activate で削除）
-const CACHE = "zennosuke-v2";
+const CACHE = "zennosuke-v3";
 const PRECACHE = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png", "./apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => {
