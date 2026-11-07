@@ -134,6 +134,16 @@
       z-index:var(--z-toast);
     }
     .toast.show{opacity:1}
+    .toast.hasAction.show{pointer-events:auto}
+    .toastBtn{
+      margin-left:10px; border:0; background:none; color:#93c5fd;
+      font-weight:900; font-size:12px; padding:0 2px; cursor:pointer;
+    }
+    .condToggle{
+      width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px;
+      border:0; background:none; padding:2px 0; font:inherit; font-weight:900; font-size:14px; cursor:pointer; color:var(--text);
+    }
+    .condToggle .hint{margin:0; font-weight:700}
     .chipRow{display:flex; gap:8px; flex-wrap:wrap}
     .chip{
       display:inline-flex; align-items:center; gap:6px;
@@ -237,6 +247,7 @@ const RECENT_WINDOW = 10;        // 直近ペナルティの対象件数
 const HISTORY_MAX = 500;          // 保存する履歴の最大件数
 const HISTORY_DISPLAY_MAX = 200;  // 画面表示する履歴の最大件数
 const TOAST_DURATION_MS = 1400;
+const TOAST_ACTION_MS = 6000;   // 取り消しボタンつきのトースト
 const SUGGEST_TRY_MAX = 80;
 const SAVE_DEBOUNCE_MS = 150;
 const VALID_CATEGORIES = ["tops", "bottoms", "outer"];
@@ -381,6 +392,18 @@ function sortHistory(st){
 }
 
 /** その日の記録に使う時刻。今日なら現在時刻、過去日なら正午（日付の判定がずれないように） */
+function tomorrowKey(){
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return dayKey(d.getTime());
+}
+
+function yesterdayKey(){
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return dayKey(d.getTime());
+}
+
 function atForDay(day){
   if (day === dayKey(Date.now())) return Date.now();
   const [y, m, d] = day.split("-").map(Number);
@@ -402,6 +425,17 @@ function agoLabel(ts){
   if (n < 60) return `${n}日前`;
   return `約${Math.floor(n / 30)}か月前`;
 }
+
+/** 追加フォームで選んだ写真（縮小済みdataURL。保存しない） */
+const AddForm = { photo: "" };
+function addPhotoHtml(){
+  return AddForm.photo
+    ? `<img class="thumb" src="${AddForm.photo}" alt="選んだ写真">`
+    : `<div class="thumb ph" aria-hidden="true">＋</div>`;
+}
+
+/** ホームの表示状態（画面内のみ。保存しない） */
+const HomeState = { condOpen: false };   // 「条件を変える」を開いているか
 
 /** カレンダーの表示状態（画面内のみ。保存しない） */
 const Cal = {
@@ -466,6 +500,14 @@ async function fileToDataUrl(file){
  * 服のサムネイルHTML。写真が1枚も登録されていなければ空（レイアウトを変えない）。
  * 写真のない服は頭文字のプレースホルダーを出して行の揃いを保つ。
  */
+/** 「色 / タグ: …」の補足文（色・タグは任意なので、あるものだけ並べる） */
+function itemMeta(item){
+  const parts = [];
+  if (item.color) parts.push(item.color);
+  if (item.tags && item.tags.length) parts.push("タグ: " + item.tags.join(", "));
+  return parts.join(" / ");
+}
+
 function thumbHtml(item){
   if (PhotoStore.count() === 0) return "";
   const src = item ? PhotoStore.get(item.id) : null;
@@ -519,6 +561,7 @@ const Store = (() => {
         historyTab: "calendar",
         statsRange: "30",
         scene: "",         // ""=指定なし / casual / clean / active
+        skipYesterday: "", // 「昨日の記録」バナーを閉じた日（昨日の日付キー）
         currentView: "home",
         wardrobeTab: "tops",
       },
@@ -559,7 +602,7 @@ const Store = (() => {
     const wardrobe = raw.wardrobe.map((it, idx) => {
       if (!it || typeof it !== "object") throw new Error(`wardrobe[${idx}] が不正です`);
       if (typeof it.name !== "string" || !it.name.trim())   throw new Error(`wardrobe[${idx}].name が不正です`);
-      if (typeof it.color !== "string" || !it.color.trim()) throw new Error(`wardrobe[${idx}].color が不正です`);
+      if (it.color !== undefined && typeof it.color !== "string") throw new Error(`wardrobe[${idx}].color が不正です`);
       if (!VALID_CATEGORIES.includes(it.category))          throw new Error(`wardrobe[${idx}].category が不正です`);
       const priority = Number(it.priority);
       if (!Number.isFinite(priority) || priority < 1 || priority > 5) {
@@ -569,10 +612,11 @@ const Store = (() => {
         id: typeof it.id === "string" && it.id ? it.id : generateId(),
         category: it.category,
         name: it.name.trim(),
-        color: it.color.trim(),
+        color: (it.color || "").trim(),
         tags: Array.isArray(it.tags) ? it.tags.filter(t => typeof t === "string") : [],
         priority,
         enabled: it.enabled !== false,
+        resumeDay: (typeof it.resumeDay === "string" && /^\d{4}-\d{2}-\d{2}$/.test(it.resumeDay) && it.enabled === false) ? it.resumeDay : "",
         createdAt: Number(it.createdAt) || Date.now(),
         updatedAt: Number(it.updatedAt) || Date.now(),
       };
@@ -621,6 +665,7 @@ const Store = (() => {
         historyTab: HISTORY_TABS.includes(rawUi.historyTab) ? rawUi.historyTab : "calendar",
         statsRange: STATS_RANGES.includes(rawUi.statsRange) ? rawUi.statsRange : "30",
         scene: SCENES.some(x => x.key === rawUi.scene) ? rawUi.scene : "",
+        skipYesterday: typeof rawUi.skipYesterday === "string" ? rawUi.skipYesterday : "",
         cands: Array.isArray(rawUi.cands)
           ? rawUi.cands
               .filter(c => c && typeof c.topsId === "string" && typeof c.bottomsId === "string")
@@ -700,7 +745,18 @@ const Store = (() => {
     rollover(){
       const today = dayKey(Date.now());
       const ui = state.ui;
-      if (ui.excludedDay === today) return false;
+      let changed = false;
+      // 洗濯中の服は、復帰日になったら自動で有効に戻す
+      for (const it of state.wardrobe) {
+        if (it.resumeDay && it.resumeDay <= today) {
+          it.resumeDay = "";
+          it.enabled = true;
+          it.updatedAt = Date.now();
+          ui.cands = [];
+          changed = true;
+        }
+      }
+      if (ui.excludedDay === today) return changed;
       ui.excludedDay = today;
       ui.excluded = [];
       ui.cands = [];
@@ -1281,11 +1337,24 @@ const UI = (() => {
   let toastTimer = null;
   let currentSuggestions = []; // ホームで表示中の提案（イベント委譲で参照）
 
-  function toast(msg){
+  /** action = { label, fn } を渡すと「取り消し」などのボタンつきで少し長く表示する */
+  function toast(msg, action){
     toastEl.textContent = msg;
+    if (action && typeof action.fn === "function") {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "toastBtn";
+      b.textContent = action.label;
+      b.addEventListener("click", () => {
+        toastEl.classList.remove("show");
+        action.fn();
+      });
+      toastEl.appendChild(b);
+    }
+    toastEl.classList.toggle("hasAction", !!action);
     toastEl.classList.add("show");
     if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toastEl.classList.remove("show"), TOAST_DURATION_MS);
+    toastTimer = setTimeout(() => toastEl.classList.remove("show"), action ? TOAST_ACTION_MS : TOAST_DURATION_MS);
   }
 
   function showView(name){
@@ -1433,34 +1502,64 @@ const UI = (() => {
     const scene = st.ui.scene || "";
     const sceneHasMatch = !scene || enabled.some(x => itemMatches(x, SCENE_TAGS[scene]));
 
+    // 昨日の記録がないとき、1タップで記録できるバナー（記録を始めた人にだけ出す）
+    const yKey = yesterdayKey();
+    const hasEntryOn = (k) => st.history.some(h => dayKey(h.at) === k);
+    const prevEntry = [...st.history].reverse().find(h =>
+      dayKey(h.at) < yKey && byIdAll.has(h.topsId) && byIdAll.has(h.bottomsId) && (!h.outerId || byIdAll.has(h.outerId)));
+    const showYday = st.history.length > 0 && !hasEntryOn(yKey) && st.ui.skipYesterday !== yKey;
+    const prevNames = prevEntry
+      ? [prevEntry.topsId, prevEntry.bottomsId, prevEntry.outerId].filter(Boolean).map(id => byIdAll.get(id).name).join("／")
+      : "";
+    const ydayCard = !showYday ? "" : `
+      <div class="card" id="yday-card">
+        <div class="row">
+          <div style="font-weight:900">昨日は何を着た？</div>
+          <button class="btn-ghost btn-small" data-act="yday-skip" aria-label="閉じる">✕</button>
+        </div>
+        ${prevEntry ? `<div class="hint">前回（${escapeHtml(fmtDate(prevEntry.at))}）：${escapeHtml(prevNames)}</div>` : ""}
+        <div class="btns" style="margin-top:10px">
+          ${prevEntry ? `<button class="btn-ghost btn-wide" data-act="yday-same">前回と同じ</button>` : ""}
+          <button class="btn-ghost btn-wide" data-act="yday-input">入力する</button>
+        </div>
+      </div>
+    `;
+
+    // 条件（シーン・ロック）は折りたたむ。ロック中の服は常に見えるようにする
+    const sceneLabel = SCENES.find(x => x.key === scene)?.label || "指定なし";
+    const condSummary = `${sceneLabel}${lockLabels.length ? `・ロック${lockLabels.length}` : ""}`;
+    const condCard = `
+      <div class="card">
+        <button class="condToggle" data-act="cond-toggle" aria-expanded="${HomeState.condOpen}">
+          <span>条件を変える</span>
+          <span class="hint">${escapeHtml(condSummary)} ${HomeState.condOpen ? "▲" : "▼"}</span>
+        </button>
+        ${HomeState.condOpen ? `
+          <div class="field" style="margin-top:12px">
+            <label>シーン</label>
+            <div class="scenes" role="group" aria-label="シーン">
+              ${SCENES.map(sc => `
+                <button class="tab ${sc.key === scene ? "active" : ""}" data-act="scene" data-scene="${sc.key}" aria-pressed="${sc.key === scene}">${sc.label}</button>
+              `).join("")}
+            </div>
+            ${sceneHasMatch ? "" : `<div class="hint">合うタグの服がありません（casual・clean・active など）</div>`}
+          </div>
+        ` : ""}
+        ${lockChips}
+      </div>
+    `;
+
     root.innerHTML = `
       ${weatherCard}
       ${todayCard}
-      <div class="card">
-        <div class="row">
-          <div>
-            <div style="font-weight:900; font-size:16px">${today ? "他の候補" : "今日の提案"}</div>
-            
-          </div>
-          <button class="btn-ghost btn-small" data-act="resuggest" aria-label="再提案">再提案</button>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="field">
-          <label>シーン</label>
-          <div class="scenes" role="group" aria-label="シーン">
-            ${SCENES.map(sc => `
-              <button class="tab ${sc.key === scene ? "active" : ""}" data-act="scene" data-scene="${sc.key}" aria-pressed="${sc.key === scene}">${sc.label}</button>
-            `).join("")}
-          </div>
-          ${sceneHasMatch ? "" : `<div class="hint">合うタグの服がありません（casual・clean・active など）</div>`}
-        </div>
-
-        ${lockChips}
+      ${ydayCard}
+      <div class="row" style="padding:0 4px">
+        <div style="font-weight:900; font-size:16px">${today ? "他の候補" : "今日の提案"}</div>
+        <button class="btn-ghost btn-small" data-act="resuggest" aria-label="再提案">再提案</button>
       </div>
 
       <div class="stack" id="suggestion-list"></div>
+      ${condCard}
       ${idleCard}
     `;
 
@@ -1522,7 +1621,6 @@ const UI = (() => {
               <div class="meta">-</div>
             </div>
           </div>
-          <span class="badge off" title="優先度">p-</span>
         </div>
       `;
     }
@@ -1534,7 +1632,7 @@ const UI = (() => {
           ${thumbHtml(item)}
           <div class="v">
             <div class="name">${escapeHtml(item.name)}</div>
-            <div class="meta">${escapeHtml(item.color)} / タグ: ${escapeHtml(tagsText)}</div>
+            <div class="meta">${escapeHtml(itemMeta(item))}</div>
           </div>
         </div>
       </div>
@@ -1568,24 +1666,28 @@ const UI = (() => {
         <div style="margin-top:10px" class="stack">
           <div class="field">
             <label for="add-name">名前（必須）</label>
-            <input id="add-name" placeholder="例：ボーダー長袖" required />
+            <input id="add-name" placeholder="例：ボーダー長袖" required autocomplete="off" />
           </div>
           <div class="field">
-            <label for="add-color">色（必須）</label>
-            <input id="add-color" placeholder="例：navy/white" required />
-          </div>
-          <div class="field">
-            <label for="add-tags">タグ（任意、カンマ区切り）</label>
-            <input id="add-tags" placeholder="例：casual,warm,rain" />
-          </div>
-          <div>
-            <div class="field">
-              <label for="add-enabled">有効にする</label>
-              <div class="switch">
-                <input type="checkbox" id="add-enabled" checked />
-              </div>
+            <label>写真（任意）</label>
+            <div class="row" style="justify-content:flex-start; gap:12px">
+              <div id="add-photo-prev">${addPhotoHtml()}</div>
+              <button class="btn-ghost btn-small" data-act="add-photo">${AddForm.photo ? "撮り直す" : "写真を選ぶ・撮る"}</button>
             </div>
           </div>
+          <details>
+            <summary class="hint" style="cursor:pointer">色・タグ（任意）</summary>
+            <div class="stack" style="margin-top:10px">
+              <div class="field">
+                <label for="add-color">色</label>
+                <input id="add-color" placeholder="例：navy/white" autocomplete="off" />
+              </div>
+              <div class="field">
+                <label for="add-tags">タグ（カンマ区切り）</label>
+                <input id="add-tags" placeholder="例：casual,warm,rain" autocomplete="off" />
+              </div>
+            </div>
+          </details>
           <button class="btn-primary btn-wide" data-act="add-item">追加する</button>
         </div>
       </div>
@@ -1608,15 +1710,15 @@ const UI = (() => {
                         : `<div class="thumb lg ph" data-act="photo" role="button" tabindex="0" aria-label="${escapeHtml(it.name)}の写真を追加">＋</div>`}
                       <div style="min-width:0">
                         <div style="font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${escapeHtml(it.name)}</div>
-                        <div class="hint">${escapeHtml(it.color)} / タグ: ${escapeHtml((it.tags && it.tags.length) ? it.tags.join(", ") : "-")}</div>
+                        <div class="hint">${escapeHtml(itemMeta(it))}</div>
                       </div>
                     </div>
                     <div class="chipRow">
-                      <span class="badge ${it.enabled ? "on" : "off"}">${it.enabled ? "有効" : "無効"}</span>
+                      <span class="badge ${it.enabled ? "on" : "off"}">${it.enabled ? "有効" : (it.resumeDay ? "洗濯中" : "無効")}</span>
                     </div>
                   </div>
                   <div class="actions">
-                    <button class="btn-ghost btn-small" data-act="toggle">${it.enabled ? "無効にする" : "有効にする"}</button>
+                    <button class="btn-ghost btn-small" data-act="toggle">${it.enabled ? "洗濯中" : (it.resumeDay ? "戻す" : "有効にする")}</button>
                     <button class="btn-ghost btn-small" data-act="edit">編集</button>
                     <button class="btn-ghost btn-small" data-act="photo">${PhotoStore.has(it.id) ? "写真を変更" : "写真を追加"}</button>
                     <button class="btn-danger btn-small" data-act="delete">削除</button>
@@ -1750,7 +1852,7 @@ const UI = (() => {
     const optionsFor = (cat, selectedId) => st.wardrobe
       .filter(x => x.category === cat)
       .sort((a, b) => a.createdAt - b.createdAt)
-      .map(it => `<option value="${escapeHtml(it.id)}" ${it.id === selectedId ? "selected" : ""}>${escapeHtml(it.name)} (${escapeHtml(it.color)})${it.enabled ? "" : "（無効）"}</option>`)
+      .map(it => `<option value="${escapeHtml(it.id)}" ${it.id === selectedId ? "selected" : ""}>${escapeHtml(it.name)}${it.color ? ` (${escapeHtml(it.color)})` : ""}${it.enabled ? "" : "（無効）"}</option>`)
       .join("");
 
     return `
@@ -1839,7 +1941,7 @@ const UI = (() => {
                       ${thumbHtml(it)}
                       <div class="v">
                         <div class="name">${escapeHtml(it.name)}</div>
-                        <div class="meta">${escapeHtml(catLabel(it.category))} / ${escapeHtml(it.color)}</div>
+                        <div class="meta">${escapeHtml(catLabel(it.category))}${it.color ? " / " + escapeHtml(it.color) : ""}</div>
                       </div>
                     </div>
                     <span class="badge ${lt === undefined ? "off" : ""}">${escapeHtml(agoLabel(lt))}</span>
@@ -1918,13 +2020,6 @@ const UI = (() => {
         <div style="font-weight:900; font-size:16px">設定 / 共有</div>
         <div class="hint" style="margin-top:6px">
           このHTML版は<b>端末内保存（localStorage）</b>です。家族共有（クラウド同期）は未対応です。
-        </div>
-        <div class="divider"></div>
-        <div class="chipRow">
-          <span class="chip"><strong>ロック</strong>：トップス/ボトムス/アウター</span>
-          <span class="chip"><strong>提案</strong>：${SUGGEST_COUNT}候補</span>
-          <span class="chip"><strong>優先度</strong>：p1〜p5</span>
-          <span class="chip"><strong>直近回避</strong>：履歴${RECENT_WINDOW}件</span>
         </div>
       </div>
 
@@ -2202,6 +2297,40 @@ const Actions = (() => {
       UI.renderCurrent();
       return;
     }
+    if (act === "cond-toggle") {
+      HomeState.condOpen = !HomeState.condOpen;
+      UI.renderCurrent();
+      return;
+    }
+    if (act === "yday-skip") {
+      st.ui.skipYesterday = yesterdayKey();
+      Store.save();
+      UI.renderCurrent();
+      return;
+    }
+    if (act === "yday-same") {
+      const yKey = yesterdayKey();
+      const ids = new Set(st.wardrobe.map(x => x.id));
+      const prev = [...st.history].reverse().find(h =>
+        dayKey(h.at) < yKey && ids.has(h.topsId) && ids.has(h.bottomsId) && (!h.outerId || ids.has(h.outerId)));
+      if (!prev || st.history.some(h => dayKey(h.at) === yKey)) return;
+      const before = JSON.parse(JSON.stringify(st.history));
+      st.history.push({ id: generateId(), at: atForDay(yKey), topsId: prev.topsId, bottomsId: prev.bottomsId, outerId: prev.outerId || null });
+      sortHistory(st);
+      Store.save();
+      UI.renderCurrent();
+      UI.toast("昨日を記録しました", { label: "取り消し", fn: () => { st.history = before; Store.save(); UI.renderCurrent(); } });
+      return;
+    }
+    if (act === "yday-input") {
+      const yKey = yesterdayKey();
+      st.ui.historyTab = "calendar";
+      Cal.month = yKey.slice(0, 7);
+      Cal.day = yKey;
+      Cal.edit = true;
+      document.querySelector("[data-nav='history']").click();
+      return;
+    }
     if (act === "unadopt") {
       const todayK = dayKey(Date.now());
       st.history = st.history.filter(h => dayKey(h.at) !== todayK);
@@ -2239,6 +2368,7 @@ const Actions = (() => {
             return;
           }
         }
+        const before = JSON.parse(JSON.stringify(st.history));
         st.history = st.history.filter(h => dayKey(h.at) !== todayK);
         st.history.push({
           id: generateId(),
@@ -2248,7 +2378,9 @@ const Actions = (() => {
           outerId: o.outer ? o.outer.id : null,
         });
         Store.save();
-        UI.toast(had ? "記録を変更しました" : "記録しました");
+        UI.renderCurrent();
+        UI.toast(had ? "記録を変更しました" : "記録しました", { label: "取り消し", fn: () => { st.history = before; Store.save(); UI.renderCurrent(); } });
+        return;
       } else {
         // 除外した1件だけが入れ替わる（他の候補は維持）
         st.ui.excluded = Array.from(new Set([...(st.ui.excluded || []), k]));
@@ -2262,32 +2394,44 @@ const Actions = (() => {
   function handleWardrobe(act, target){
     const st = Store.get();
 
+    if (act === "add-photo") {
+      pickPhoto(ADD_PHOTO_TARGET);
+      return;
+    }
     if (act === "add-item") {
       const root = document.getElementById("view-wardrobe");
       const name     = root.querySelector("#add-name").value.trim();
       const color    = root.querySelector("#add-color").value.trim();
       const tagsText = root.querySelector("#add-tags").value;
-      const priority = 3;
-      const enabled  = root.querySelector("#add-enabled").checked;
-
-      if (!name || !color) {
-        UI.toast("名前と色は必須です");
+      if (!name) {
+        UI.toast("名前を入力してください");
+        root.querySelector("#add-name").focus();
         return;
       }
-
+      const id = generateId();
       const now = Date.now();
       st.wardrobe.push({
-        id: generateId(),
+        id,
         category: st.ui.wardrobeTab,
         name, color,
-        tags: tagsText.split(",").map(s => s.trim()).filter(Boolean),
-        priority,
-        enabled,
+        tags: tagsText.split(",").map(x => x.trim()).filter(Boolean),
+        priority: 3,
+        enabled: true,
+        resumeDay: "",
         createdAt: now,
         updatedAt: now,
       });
       Store.save();
-      UI.renderCurrent();
+      const photo = AddForm.photo;
+      AddForm.photo = "";
+      const finish = () => {
+        UI.renderCurrent();
+        UI.toast(`「${name}」を追加しました`);
+        const n = document.getElementById("add-name");
+        if (n) n.focus();   // そのまま次の服を入力できる
+      };
+      if (photo) PhotoStore.set(id, photo).then(finish, finish);
+      else finish();
       return;
     }
 
@@ -2308,7 +2452,14 @@ const Actions = (() => {
     if (!item) return;
 
     if (act === "toggle") {
-      item.enabled = !item.enabled;
+      if (item.enabled) {
+        // 洗濯中：明日になったら自動で有効に戻る
+        item.enabled = false;
+        item.resumeDay = tomorrowKey();
+      } else {
+        item.enabled = true;
+        item.resumeDay = "";
+      }
       item.updatedAt = Date.now();
       Store.save();
       UI.renderCurrent();
@@ -2332,6 +2483,8 @@ const Actions = (() => {
 
   /* ---- PHOTO ---- */
   let photoTargetId = null;   // いま写真を選んでいる服のID
+  const ADD_PHOTO_TARGET = "__add__";   // 追加フォーム用（まだ服のIDがない）
+
 
   function pickPhoto(id){
     photoTargetId = id;
@@ -2359,6 +2512,20 @@ const Actions = (() => {
     const id = photoTargetId;
     photoTargetId = null;
     if (!file || !id) return;
+    if (id === ADD_PHOTO_TARGET) {
+      try {
+        AddForm.photo = await fileToDataUrl(file);
+      } catch {
+        UI.toast("写真を読み込めませんでした");
+        return;
+      }
+      // 入力途中の名前を消さないよう、写真まわりだけ更新する
+      const prev = document.getElementById("add-photo-prev");
+      if (prev) prev.innerHTML = addPhotoHtml();
+      const btn = document.querySelector('[data-act="add-photo"]');
+      if (btn) btn.textContent = "撮り直す";
+      return;
+    }
     if (!Store.get().wardrobe.some(x => x.id === id)) return;
     UI.toast("写真を処理しています");
     try {
@@ -2382,7 +2549,7 @@ const Actions = (() => {
       cardHtml: `
         <img src="${src}" alt="${escapeHtml(it.name)}" style="width:100%; border-radius:14px; display:block">
         <div style="font-weight:900; margin-top:10px">${escapeHtml(it.name)}</div>
-        <div class="hint">${escapeHtml(it.color)}</div>
+        ${it.color ? `<div class="hint">${escapeHtml(it.color)}</div>` : ""}
         <div class="btns"><button class="btn-ghost btn-wide" data-edit-act="close">閉じる</button></div>
       `,
     });
@@ -2462,14 +2629,15 @@ const Actions = (() => {
         const st = Store.get();
         const name  = card.querySelector("#edit-name").value.trim();
         const color = card.querySelector("#edit-color").value.trim();
-        if (!name || !color) {
-          UI.toast("名前と色は必須です");
+        if (!name) {
+          UI.toast("名前を入力してください");
           return;
         }
         item.name  = name;
         item.color = color;
         item.tags  = card.querySelector("#edit-tags").value.split(",").map(s => s.trim()).filter(Boolean);
         item.enabled  = card.querySelector("#edit-enabled").checked;
+        if (item.enabled) item.resumeDay = "";
         item.updatedAt = Date.now();
         Store.save();
         UI.toast("保存しました");
