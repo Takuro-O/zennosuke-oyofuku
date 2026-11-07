@@ -227,6 +227,22 @@ function fmtDate(ts){
   return new Date(ts).toLocaleString("ja-JP");
 }
 
+/** ローカル日付キー（YYYY-MM-DD）。日付またぎ判定・1日1件制御に使う */
+function dayKey(ts){
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** 履歴から「今日」の採用エントリ（最新）を返す。なければ null */
+function todaysEntry(history){
+  const k = dayKey(Date.now());
+  let found = null;
+  for (const h of history) {
+    if (dayKey(h.at) === k && (!found || h.at >= found.at)) found = h;
+  }
+  return found;
+}
+
 function catLabel(key){
   const c = CATS.find(x => x.key === key);
   return c ? c.label : key;
@@ -254,6 +270,8 @@ const Store = (() => {
       ui: {
         lock: { topsId: null, bottomsId: null, outerId: null },
         excluded: [],
+        excludedDay: "",   // excluded を作った日（日付が変わったらリセット）
+        cands: [],         // 表示中の候補（ID の組）。再描画しても維持する
         currentView: "home",
         wardrobeTab: "tops",
       },
@@ -351,6 +369,17 @@ const Store = (() => {
           outerId:   outerLock,
         },
         excluded: Array.isArray(rawUi.excluded) ? rawUi.excluded.filter(x => typeof x === "string") : [],
+        excludedDay: typeof rawUi.excludedDay === "string" ? rawUi.excludedDay : "",
+        cands: Array.isArray(rawUi.cands)
+          ? rawUi.cands
+              .filter(c => c && typeof c.topsId === "string" && typeof c.bottomsId === "string")
+              .map(c => ({
+                topsId: c.topsId,
+                bottomsId: c.bottomsId,
+                outerId: typeof c.outerId === "string" ? c.outerId : null,
+              }))
+              .slice(0, SUGGEST_COUNT)
+          : [],
         currentView: ["home","wardrobe","history","settings"].includes(rawUi.currentView) ? rawUi.currentView : "home",
         wardrobeTab: VALID_CATEGORIES.includes(rawUi.wardrobeTab) ? rawUi.wardrobeTab : "tops",
       },
@@ -413,6 +442,19 @@ const Store = (() => {
       state = defaultState();
       return persist();
     },
+    /**
+     * 日付が変わっていたら「除外」と「候補」をリセットする。
+     * 変更があれば true（呼び出し側で保存・再描画する）。
+     */
+    rollover(){
+      const today = dayKey(Date.now());
+      const ui = state.ui;
+      if (ui.excludedDay === today) return false;
+      ui.excludedDay = today;
+      ui.excluded = [];
+      ui.cands = [];
+      return true;
+    },
     validate: validateAndNormalize,
     defaultState,
   };
@@ -457,24 +499,59 @@ const Suggest = (() => {
     return items[items.length - 1];
   }
 
-  function generate(state, count = SUGGEST_COUNT){
-    const enabled = state.wardrobe.filter(x => x.enabled);
+  function enabledMap(state){
+    return new Map(state.wardrobe.filter(x => x.enabled).map(x => [x.id, x]));
+  }
+
+  /**
+   * 実効ロック：有効なアイテムを指しているロックだけを有効とみなす。
+   * （無効化・削除されたアイテムのロックは「固定しない」扱い）
+   * outerId: null=固定しない / "none"=なし固定 / itemId=そのアウター固定
+   */
+  function effectiveLock(state, byId){
+    const l = state.ui.lock || {};
+    const pick = (id, cat) => {
+      const it = id ? byId.get(id) : null;
+      return (it && it.category === cat) ? it.id : null;
+    };
+    return {
+      topsId:    pick(l.topsId, "tops"),
+      bottomsId: pick(l.bottomsId, "bottoms"),
+      outerId:   l.outerId === "none" ? "none" : pick(l.outerId, "outer"),
+    };
+  }
+
+  function matchesLock(o, lock){
+    if (lock.topsId    && o.tops.id    !== lock.topsId)    return false;
+    if (lock.bottomsId && o.bottoms.id !== lock.bottomsId) return false;
+    if (lock.outerId === "none") return o.outer === null;
+    if (lock.outerId) return !!o.outer && o.outer.id === lock.outerId;
+    return true;
+  }
+
+  function toCand(o){
+    return { topsId: o.tops.id, bottomsId: o.bottoms.id, outerId: o.outer ? o.outer.id : null };
+  }
+
+  /**
+   * 新しい候補を最大 count 件つくる。avoidKeys に含まれる組み合わせは出さない。
+   */
+  function generate(state, count = SUGGEST_COUNT, avoidKeys = null){
+    const byId = enabledMap(state);
+    const enabled = [...byId.values()];
     const tops    = enabled.filter(x => x.category === "tops");
     const bottoms = enabled.filter(x => x.category === "bottoms");
     const outers  = enabled.filter(x => x.category === "outer");
 
-    const lock = state.ui.lock || { topsId: null, bottomsId: null, outerId: null };
-    const lockedTops    = lock.topsId    ? tops.find(x => x.id === lock.topsId)       : null;
-    const lockedBottoms = lock.bottomsId ? bottoms.find(x => x.id === lock.bottomsId) : null;
+    const lock = effectiveLock(state, byId);
+    const lockedTops    = lock.topsId    ? byId.get(lock.topsId)    : null;
+    const lockedBottoms = lock.bottomsId ? byId.get(lock.bottomsId) : null;
 
-    // outerId: null=固定しない / "none"=なし固定 / itemId=そのアウター固定
+    // lockedOuter: undefined=固定しない / null=なし固定 / item=そのアウター固定
     let lockedOuter;
     if (lock.outerId === "none") lockedOuter = null;
-    else if (typeof lock.outerId === "string" && lock.outerId) {
-      lockedOuter = outers.find(x => x.id === lock.outerId) || null;
-    } else {
-      lockedOuter = undefined;
-    }
+    else if (lock.outerId)       lockedOuter = byId.get(lock.outerId);
+    else                         lockedOuter = undefined;
 
     if (!lockedTops    && tops.length === 0)    return [];
     if (!lockedBottoms && bottoms.length === 0) return [];
@@ -494,7 +571,7 @@ const Suggest = (() => {
       return base * penaltyFor(it.id, recentMap);
     });
 
-    const seen = new Set();
+    const seen = new Set(avoidKeys || []);
     const out = [];
     for (let tries = 0; tries < SUGGEST_TRY_MAX && out.length < count; tries++) {
       const t = lockedTops ?? pickItem(tops);
@@ -511,7 +588,53 @@ const Suggest = (() => {
     return out;
   }
 
-  return { generate, outfitKey };
+  /**
+   * 表示中の候補（state.ui.cands）を現在の状態に「整合」させる。
+   *  - 有効で、除外されておらず、ロック条件を満たす候補はそのまま残す
+   *  - そうでない候補だけ捨て、足りない分を新しく補充する
+   * これにより、ロック変更・採用・除外・タブ移動のたびに全候補が引き直されない。
+   * 戻り値は描画用のアイテム実体の配列。state.ui.cands も更新する。
+   */
+  function reconcile(state, count = SUGGEST_COUNT){
+    const byId = enabledMap(state);
+    const excluded = new Set(state.ui.excluded || []);
+    const lock = effectiveLock(state, byId);
+
+    // 各スロットの位置を保つ：無効になったスロットだけが、その場で新しい候補に入れ替わる
+    const slots = new Array(count).fill(null);
+    const seen = new Set();
+    const cands = state.ui.cands || [];
+    for (let i = 0; i < count && i < cands.length; i++) {
+      const c = cands[i];
+      const t = byId.get(c.topsId);
+      const b = byId.get(c.bottomsId);
+      if (!t || t.category !== "tops" || !b || b.category !== "bottoms") continue;
+      let o = null;
+      if (c.outerId) {
+        o = byId.get(c.outerId);
+        if (!o || o.category !== "outer") continue;
+      }
+      const outfit = { tops: t, bottoms: b, outer: o };
+      const k = outfitKey(outfit);
+      if (excluded.has(k) || seen.has(k) || !matchesLock(outfit, lock)) continue;
+      seen.add(k);
+      slots[i] = outfit;
+    }
+
+    const need = slots.filter(s => s === null).length;
+    const fill = need > 0 ? generate(state, need, seen) : [];
+    let fi = 0;
+    for (let i = 0; i < count && fi < fill.length; i++) {
+      if (slots[i] === null) slots[i] = fill[fi++];
+    }
+
+    // 補充できなかった空きスロットは詰める
+    const result = slots.filter(Boolean);
+    state.ui.cands = result.map(toCand);
+    return result;
+  }
+
+  return { generate, reconcile, outfitKey };
 })();
 
 /* =========================
@@ -560,11 +683,40 @@ const UI = (() => {
   function renderHome(){
     const st = Store.get();
     const root = views.home;
-    const suggestions = Suggest.generate(st, SUGGEST_COUNT);
+    // 既存の候補を維持しつつ、無効になった分だけ補充する（毎回引き直さない）
+    const suggestions = Suggest.reconcile(st, SUGGEST_COUNT);
     currentSuggestions = suggestions;
+    Store.save();
 
     const lock = st.ui.lock;
     const excludedCount = (st.ui.excluded || []).length;
+
+    // 今日すでに採用したコーデ（履歴から日付で判定）
+    const today = todaysEntry(st.history);
+    const todayKey = today ? `${today.topsId}|${today.bottomsId}|${today.outerId || "none"}` : null;
+    const byIdAll = new Map(st.wardrobe.map(x => [x.id, x]));
+    const todayTime = today
+      ? new Date(today.at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })
+      : "";
+    const todayCard = today ? `
+      <div class="card" style="border-color:rgba(22,163,74,.35)">
+        <div class="row">
+          <div>
+            <div style="font-weight:900; font-size:16px">今日のコーデ</div>
+            <div class="hint">${escapeHtml(todayTime)} に採用</div>
+          </div>
+          <span class="badge on">採用済み</span>
+        </div>
+        <div style="margin-top:10px" class="stack">
+          ${renderHistoryLine("トップス", byIdAll.get(today.topsId), false)}
+          ${renderHistoryLine("ボトムス", byIdAll.get(today.bottomsId), false)}
+          ${renderHistoryLine("アウター", today.outerId ? byIdAll.get(today.outerId) : null, true)}
+        </div>
+        <div class="btns">
+          <button class="btn-danger btn-wide" data-act="unadopt" aria-label="今日の採用を取り消す">採用を取り消す</button>
+        </div>
+      </div>
+    ` : "";
 
     const enabled = st.wardrobe.filter(x => x.enabled);
     const tops    = enabled.filter(x => x.category === "tops");
@@ -581,11 +733,12 @@ const UI = (() => {
     };
 
     root.innerHTML = `
+      ${todayCard}
       <div class="card">
         <div class="row">
           <div>
-            <div style="font-weight:900; font-size:16px">今日の提案</div>
-            <div class="hint">ロック・優先度・直近履歴で調整します。除外: ${excludedCount} 件</div>
+            <div style="font-weight:900; font-size:16px">${today ? "他の候補" : "今日の提案"}</div>
+            <div class="hint">ロック・優先度・直近履歴で調整します。除外: ${excludedCount} 件（日付が変わるとリセット）</div>
           </div>
           <button class="btn-ghost btn-small" data-act="resuggest" aria-label="再提案">再提案</button>
         </div>
@@ -651,10 +804,12 @@ const UI = (() => {
           </div>
 
           <div class="btns">
-            <button class="btn-primary btn-wide" data-act="adopt" aria-label="このコーデを採用">採用</button>
+            ${k === todayKey
+              ? `<button class="btn-primary btn-wide" data-act="adopt" disabled aria-label="採用済み">採用済み</button>`
+              : `<button class="btn-primary btn-wide" data-act="adopt" aria-label="このコーデを採用">${today ? "これに変更" : "採用"}</button>`}
           </div>
           <div class="btns">
-            <button class="btn-ghost btn-wide" data-act="exclude" aria-label="この候補を除外して再提案">この候補を除外して再提案</button>
+            <button class="btn-ghost btn-wide" data-act="exclude" aria-label="この候補を除外して入れ替え">この候補を除外して入れ替え</button>
           </div>
         </div>
       `;
@@ -883,6 +1038,8 @@ const UI = (() => {
   /* ---------- ルート描画：ビュー単位で再描画 ---------- */
   function renderCurrent(){
     const st = Store.get();
+    // 日付が変わっていたら除外・候補をリセット
+    if (Store.rollover()) Store.save();
     renderHeader(st);
     showView(st.ui.currentView);
     switch (st.ui.currentView) {
@@ -1042,6 +1199,15 @@ const Actions = (() => {
     const st = Store.get();
 
     if (act === "resuggest") {
+      st.ui.cands = []; // 全候補を引き直す
+      UI.renderCurrent();
+      return;
+    }
+    if (act === "unadopt") {
+      const todayK = dayKey(Date.now());
+      st.history = st.history.filter(h => dayKey(h.at) !== todayK);
+      Store.save();
+      UI.toast("今日の採用を取り消しました");
       UI.renderCurrent();
       return;
     }
@@ -1061,6 +1227,19 @@ const Actions = (() => {
       if (!o) return;
 
       if (act === "adopt") {
+        // 1日1件：今日の既存エントリは置き換える（連打・複数回採用でも履歴は増えない）
+        const todayK = dayKey(Date.now());
+        const had = todaysEntry(st.history);
+        if (had) {
+          const sameOutfit = had.topsId === o.tops.id
+            && had.bottomsId === o.bottoms.id
+            && (had.outerId || null) === (o.outer ? o.outer.id : null);
+          if (sameOutfit) {
+            UI.toast("すでに採用済みです");
+            return;
+          }
+        }
+        st.history = st.history.filter(h => dayKey(h.at) !== todayK);
         st.history.push({
           id: generateId(),
           at: Date.now(),
@@ -1069,11 +1248,12 @@ const Actions = (() => {
           outerId: o.outer ? o.outer.id : null,
         });
         Store.save();
-        UI.toast("採用しました");
+        UI.toast(had ? "今日のコーデを変更しました" : "採用しました");
       } else {
+        // 除外した1件だけが入れ替わる（他の候補は維持）
         st.ui.excluded = Array.from(new Set([...(st.ui.excluded || []), k]));
         Store.save();
-        UI.toast("除外して再提案");
+        UI.toast("除外して入れ替えました");
       }
       UI.renderCurrent();
     }
@@ -1355,6 +1535,16 @@ function bindDelegatedEvents(){
       UI.renderCurrent();
       // hashchange 発火は許容（hrefそのまま）
     });
+  });
+
+  // アプリを開いたまま日付をまたいだ場合、復帰時に「今日」を更新する
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") return;
+    if (Modal.isOpen()) return;
+    if (Store.rollover()) {
+      Store.save();
+      UI.renderCurrent();
+    }
   });
 
   // hashchange
