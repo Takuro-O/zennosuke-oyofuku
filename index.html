@@ -203,6 +203,38 @@ const CATS = [
   { key: "outer",   label: "アウター" },
 ];
 
+/* 天気連動 */
+const WEATHER_KEY = "zennosuke_weather_v1";   // 天気設定・キャッシュ（端末固有のためバックアップJSONには含めない）
+const WX_FORECAST_URL = "https://api.open-meteo.com/v1/forecast";
+const WX_GEOCODE_URL  = "https://geocoding-api.open-meteo.com/v1/search";
+const WX_TIMEOUT_MS = 5000;
+const WX_RAIN_POP = 50;                       // この降水確率(%)以上を「雨」とみなす
+const WX_PRESETS = [
+  { label: "札幌",   lat: 43.06, lon: 141.35 },
+  { label: "仙台",   lat: 38.27, lon: 140.87 },
+  { label: "東京",   lat: 35.69, lon: 139.69 },
+  { label: "横浜",   lat: 35.44, lon: 139.64 },
+  { label: "新潟",   lat: 37.92, lon: 139.04 },
+  { label: "金沢",   lat: 36.56, lon: 136.66 },
+  { label: "名古屋", lat: 35.18, lon: 136.91 },
+  { label: "京都",   lat: 35.01, lon: 135.77 },
+  { label: "大阪",   lat: 34.69, lon: 135.50 },
+  { label: "神戸",   lat: 34.69, lon: 135.20 },
+  { label: "広島",   lat: 34.40, lon: 132.46 },
+  { label: "高松",   lat: 34.34, lon: 134.04 },
+  { label: "福岡",   lat: 33.59, lon: 130.40 },
+  { label: "鹿児島", lat: 31.60, lon: 130.56 },
+  { label: "那覇",   lat: 26.21, lon: 127.68 },
+];
+const WX_DEFAULT_LOC = WX_PRESETS.find(p => p.label === "東京");
+/* 服のタグ・名前に含まれる語から、気温への向き不向きを判定する */
+const WX_TAGS = {
+  warm: ["warm", "winter", "厚手", "暖かい", "あったか", "防寒", "冬"],
+  cool: ["summer", "light", "cool", "薄手", "涼しい", "軽め", "夏"],
+  mild: ["spring", "autumn", "fall", "春", "秋"],
+  rain: ["rain", "waterproof", "防水", "撥水", "雨"],
+};
+
 /* =========================
    ユーティリティ
    ========================= */
@@ -272,6 +304,7 @@ const Store = (() => {
         excluded: [],
         excludedDay: "",   // excluded を作った日（日付が変わったらリセット）
         cands: [],         // 表示中の候補（ID の組）。再描画しても維持する
+        candsWx: "",       // 候補を作ったときの天気の区分（変わったら候補を作り直す）
         currentView: "home",
         wardrobeTab: "tops",
       },
@@ -282,12 +315,12 @@ const Store = (() => {
     const seeds = [
       { category: "tops", name: "ボーダー長袖",    color: "navy/white", tags: ["casual"], priority: 4, enabled: true },
       { category: "tops", name: "グレーのトレーナー", color: "gray",    tags: ["warm"],   priority: 3, enabled: true },
-      { category: "tops", name: "白Tシャツ",        color: "white",     tags: ["basic"],  priority: 5, enabled: true },
+      { category: "tops", name: "白Tシャツ",        color: "white",     tags: ["basic", "light"], priority: 5, enabled: true },
       { category: "bottoms", name: "デニム",            color: "indigo", tags: ["casual"], priority: 4, enabled: true },
       { category: "bottoms", name: "黒のスウェット",     color: "black",  tags: ["easy"],   priority: 5, enabled: true },
       { category: "bottoms", name: "ベージュのチノ",    color: "beige",  tags: ["clean"],  priority: 3, enabled: true },
       { category: "outer", name: "薄手のパーカー",       color: "beige",  tags: ["spring"], priority: 3, enabled: true },
-      { category: "outer", name: "ウィンドブレーカー", color: "navy",   tags: ["active"], priority: 4, enabled: true },
+      { category: "outer", name: "ウィンドブレーカー", color: "navy",   tags: ["active", "rain"], priority: 4, enabled: true },
     ];
     const now = Date.now();
     return seeds.map(x => ({
@@ -370,6 +403,7 @@ const Store = (() => {
         },
         excluded: Array.isArray(rawUi.excluded) ? rawUi.excluded.filter(x => typeof x === "string") : [],
         excludedDay: typeof rawUi.excludedDay === "string" ? rawUi.excludedDay : "",
+        candsWx: typeof rawUi.candsWx === "string" ? rawUi.candsWx : "",
         cands: Array.isArray(rawUi.cands)
           ? rawUi.cands
               .filter(c => c && typeof c.topsId === "string" && typeof c.bottomsId === "string")
@@ -457,6 +491,267 @@ const Store = (() => {
     },
     validate: validateAndNormalize,
     defaultState,
+  };
+})();
+
+/* =========================
+   天気（Open-Meteo・APIキー不要）
+   - 設定とその日の予報を端末内にキャッシュ（1日1回だけ取得）
+   - 気温帯に応じて「アウターの有無」と「服の選ばれやすさ」を調整
+   ========================= */
+const Weather = (() => {
+  let st = { enabled: true, loc: { ...WX_DEFAULT_LOC }, data: null };
+  let inflight = null;
+  let inflightKey = "";
+  let reqId = 0;
+  let lastError = false;
+  let changeCb = () => {};
+
+  const num = (v) => (typeof v === "number" && Number.isFinite(v)) ? v : null;
+  const r2 = (v) => Number(Number(v).toFixed(2));
+  const todayKey = () => dayKey(Date.now());
+
+  // 気温帯ごとの係数（warm=暖かい服 / cool=涼しい服 / mild=春秋の服）
+  const WARM_F = { hot: 0.15, warm: 0.5, mild: 1,   cool: 1.6, cold: 2.6 };
+  const COOL_F = { hot: 2.4,  warm: 1.6, mild: 1,   cool: 0.5, cold: 0.2 };
+  const MILD_F = { hot: 0.6,  warm: 1.2, mild: 1.6, cool: 1.3, cold: 0.6 };
+  // 「アウターなし」になる目標確率。アウターの数や優先度に左右されないよう、
+  // 提案側で「アウター全体の重み」に対するオッズ p/(1-p) に換算して使う
+  const OUTER_NONE_P = { hot: 0.92, warm: 0.55, mild: 0.08, cool: 0.02, cold: 0.005 };
+  const TIER_LABEL = { hot: "暑い", warm: "暖かい", mild: "過ごしやすい", cool: "肌寒い", cold: "寒い" };
+  const TIER_ADVICE = {
+    hot:  "アウターは不要。涼しい素材・薄手のトップスがおすすめ。",
+    warm: "アウターはなくても過ごせます。羽織るなら薄手のものを。",
+    mild: "薄手のアウターがあると安心な気温です。",
+    cool: "朝晩は冷えます。アウターを着るのがおすすめ。",
+    cold: "しっかりしたアウターと暖かい服がおすすめ。",
+  };
+
+  function load(){
+    try {
+      const raw = JSON.parse(localStorage.getItem(WEATHER_KEY) || "null");
+      if (!raw || typeof raw !== "object") return;
+      if (typeof raw.enabled === "boolean") st.enabled = raw.enabled;
+      const l = raw.loc;
+      if (l && num(l.lat) !== null && num(l.lon) !== null && typeof l.label === "string" && l.label) {
+        st.loc = { lat: l.lat, lon: l.lon, label: l.label };
+      }
+      const d = raw.data;
+      if (d && typeof d.day === "string" && num(d.tmax) !== null && num(d.tmin) !== null
+          && num(d.lat) !== null && num(d.lon) !== null) {
+        st.data = {
+          day: d.day, lat: d.lat, lon: d.lon, tmax: d.tmax, tmin: d.tmin,
+          pop: num(d.pop) ?? 0, code: num(d.code),
+        };
+      }
+    } catch { /* 破損していても既定値で動く */ }
+  }
+
+  function save(){
+    try { localStorage.setItem(WEATHER_KEY, JSON.stringify(st)); } catch { /* 容量不足などは無視 */ }
+  }
+
+  function dataIsFresh(){
+    const d = st.data;
+    return !!d && d.day === todayKey() && d.lat === st.loc.lat && d.lon === st.loc.lon;
+  }
+
+  /** 今日の予報（無効・未取得・古い場合は null） */
+  function current(){ return (st.enabled && dataIsFresh()) ? st.data : null; }
+
+  function tierOf(d){
+    const t = d.tmax * 0.6 + d.tmin * 0.4;   // 日中を重視しつつ朝晩の冷えも加味
+    if (t >= 25) return "hot";
+    if (t >= 20) return "warm";
+    if (t >= 15) return "mild";
+    if (t >= 10) return "cool";
+    return "cold";
+  }
+  const isRainy = (d) => d.pop >= WX_RAIN_POP;
+
+  /** 候補を作り直すかどうかの判定用。天気の区分が変わったら値が変わる */
+  function signature(){
+    const d = current();
+    return d ? `${tierOf(d)}|${isRainy(d) ? 1 : 0}` : "none";
+  }
+
+  function hasTag(item, group){
+    const tags = (item.tags || []).map(t => String(t).toLowerCase());
+    const name = String(item.name || "").toLowerCase();
+    return WX_TAGS[group].some(w => tags.includes(w) || (!/^[\x00-\x7f]+$/.test(w) && name.includes(w)));
+  }
+
+  /** 服1点の選ばれやすさの係数（タグ・名前なし=1） */
+  function factor(item, d){
+    const tier = tierOf(d);
+    let f = 1;
+    if (hasTag(item, "warm")) f *= WARM_F[tier];
+    if (hasTag(item, "cool")) f *= COOL_F[tier];
+    if (hasTag(item, "mild")) f *= MILD_F[tier];
+    if (isRainy(d) && hasTag(item, "rain")) f *= 2.5;
+    return f;
+  }
+
+  /** 「アウターなし」の重み ÷ 「アウター全体の重み」。雨の日はアウターを着やすいよう半分に */
+  function outerNoneOdds(d){
+    const p = OUTER_NONE_P[tierOf(d)];
+    return (p / (1 - p)) * (isRainy(d) ? 0.5 : 1);
+  }
+
+  function codeLabel(c){
+    if (c === null || c === undefined) return "";
+    if (c === 0) return "快晴";
+    if (c === 1) return "晴れ";
+    if (c === 2) return "薄曇り";
+    if (c === 3) return "曇り";
+    if (c === 45 || c === 48) return "霧";
+    if (c >= 51 && c <= 57) return "霧雨";
+    if (c === 66 || c === 67) return "みぞれ";
+    if (c >= 61 && c <= 65) return "雨";
+    if (c >= 71 && c <= 77) return "雪";
+    if (c >= 80 && c <= 82) return "にわか雨";
+    if (c === 85 || c === 86) return "にわか雪";
+    if (c >= 95) return "雷雨";
+    return "";
+  }
+
+  function summaryText(d){
+    const desc = codeLabel(d.code);
+    return `${desc ? desc + " " : ""}${Math.round(d.tmax)}° / ${Math.round(d.tmin)}° ・ 降水確率 ${Math.round(d.pop)}%`;
+  }
+
+  async function fetchJson(url){
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), WX_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, { signal: ctrl.signal });
+      if (!res.ok) throw new Error(`http ${res.status}`);
+      return await res.json();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * 今日の予報を取得する。新鮮なキャッシュがあれば何もしない（force で強制）。
+   * 成功したら true。
+   */
+  function refresh(force = false){
+    if (!st.enabled) return Promise.resolve(false);
+    if (!force && dataIsFresh()) return Promise.resolve(false);
+    // 同じ地域の取得がすでに走っていればそれに乗る（地域が違えば新しく取り直す）
+    if (inflight && inflightKey === `${st.loc.lat},${st.loc.lon}`) return inflight;
+
+    const loc = { ...st.loc };
+    const myId = ++reqId;
+    inflightKey = `${loc.lat},${loc.lon}`;
+    const url = `${WX_FORECAST_URL}?latitude=${loc.lat}&longitude=${loc.lon}`
+      + `&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code`
+      + `&timezone=auto&forecast_days=1`;
+
+    const p = (async () => {
+      let ok = false;
+      try {
+        const j = await fetchJson(url);
+        const dd = j && j.daily;
+        const tmax = num(dd?.temperature_2m_max?.[0]);
+        const tmin = num(dd?.temperature_2m_min?.[0]);
+        if (tmax === null || tmin === null) throw new Error("invalid response");
+        // より新しい取得が始まっていたら（地域変更など）この結果は捨てる
+        if (myId === reqId) {
+          st.data = {
+            day: todayKey(), lat: loc.lat, lon: loc.lon, tmax, tmin,
+            pop: num(dd?.precipitation_probability_max?.[0]) ?? 0,
+            code: num(dd?.weather_code?.[0]),
+          };
+          save();
+          lastError = false;
+          ok = true;
+        }
+      } catch {
+        if (myId === reqId) lastError = true;
+      } finally {
+        if (myId === reqId) {
+          inflight = null;
+          changeCb();
+        }
+      }
+      return ok;
+    })();
+    inflight = p;
+    return p;
+  }
+
+  function setLocation(loc){
+    st.loc = { lat: r2(loc.lat), lon: r2(loc.lon), label: String(loc.label || "指定地点") };
+    st.data = null;
+    lastError = false;
+    save();
+    return refresh(true);
+  }
+
+  function setEnabled(on){
+    st.enabled = !!on;
+    save();
+    const p = st.enabled ? refresh() : Promise.resolve(false);
+    if (!inflight) changeCb();   // 取得が走らない場合は即時に画面へ反映
+    return p;
+  }
+
+  /** 地名検索。2文字だと完全一致のみのため、見つからなければ「市」を付けて再検索 */
+  async function search(q){
+    const name = String(q || "").trim();
+    if (!name) return [];
+    const query = async (n) => {
+      const j = await fetchJson(`${WX_GEOCODE_URL}?name=${encodeURIComponent(n)}&count=5&language=ja&format=json`);
+      return Array.isArray(j?.results) ? j.results : [];   // 0件のときは results キーごと無い
+    };
+    let r = await query(name);
+    if (r.length === 0 && !/[市区町村]$/.test(name)) r = await query(name + "市");
+    return r
+      .filter(x => num(x.latitude) !== null && num(x.longitude) !== null && x.name)
+      .map(x => ({
+        label: String(x.name),
+        sub: [x.admin1, x.country].filter(Boolean).join(" / "),
+        lat: r2(x.latitude),
+        lon: r2(x.longitude),
+      }));
+  }
+
+  /** 端末の現在地（座標は小数2桁に丸めて保持） */
+  function locate(){
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) { reject(new Error("unsupported")); return; }
+      navigator.geolocation.getCurrentPosition(
+        (p) => resolve({ lat: r2(p.coords.latitude), lon: r2(p.coords.longitude), label: "現在地" }),
+        reject,
+        { timeout: 10000, maximumAge: 600000 }
+      );
+    });
+  }
+
+  function statusText(){
+    if (!st.enabled) return "オフ（天気は提案に反映されません）";
+    if (inflight && !current()) return "取得中…";
+    const d = current();
+    if (d) return `${st.loc.label}：${summaryText(d)}`;
+    if (lastError) return "天気を取得できませんでした（オフラインの可能性）。「天気を更新」で再試行できます。";
+    return "未取得";
+  }
+
+  load();
+
+  return {
+    init(){ return refresh(); },
+    onChange(cb){ changeCb = cb; },
+    current, signature, factor, outerNoneOdds, tierOf, isRainy,
+    refresh, setLocation, setEnabled, search, locate,
+    statusText, summaryText,
+    tierLabel: (d) => TIER_LABEL[tierOf(d)],
+    tierAdvice: (d) => TIER_ADVICE[tierOf(d)],
+    isEnabled: () => st.enabled,
+    isPending: () => st.enabled && !!inflight && !current(),
+    location: () => ({ ...st.loc }),
   };
 })();
 
@@ -560,16 +855,20 @@ const Suggest = (() => {
     const excluded = new Set(state.ui.excluded || []);
     const outerPool = [null, ...outers];
 
-    const pickItem = (pool) => weightedPick(pool, it => {
+    // 天気連動：気温帯に応じて服の重みとアウターなしの重みを調整（天気がなければ従来どおり）
+    const wx = Weather.current();
+    const weightOf = (it) => {
       const base = (it.priority || 3) ** 2;
-      return base * penaltyFor(it.id, recentMap);
-    });
+      return base * penaltyFor(it.id, recentMap) * (wx ? Weather.factor(it, wx) : 1);
+    };
+    // アウターなしの重み：天気があれば目標確率から逆算、なければ従来どおり 0.8
+    const noneWeight = wx
+      ? Weather.outerNoneOdds(wx) * outers.reduce((sum, it) => sum + weightOf(it), 0)
+      : 0.8;
 
-    const pickOuter = () => weightedPick(outerPool, it => {
-      if (it === null) return 0.8;
-      const base = (it.priority || 3) ** 2;
-      return base * penaltyFor(it.id, recentMap);
-    });
+    const pickItem = (pool) => weightedPick(pool, weightOf);
+
+    const pickOuter = () => weightedPick(outerPool, it => (it === null ? noneWeight : weightOf(it)));
 
     const seen = new Set(avoidKeys || []);
     const out = [];
@@ -683,10 +982,49 @@ const UI = (() => {
   function renderHome(){
     const st = Store.get();
     const root = views.home;
+    // 天気の区分が変わったら（取得完了・地域変更など）候補を作り直す
+    const wxSig = Weather.signature();
+    if (st.ui.candsWx !== wxSig) { st.ui.cands = []; st.ui.candsWx = wxSig; }
+    // 天気の取得待ちの間は候補を作らない（取得後に正しい重みで作るため）
+    const pending = Weather.isPending();
+
     // 既存の候補を維持しつつ、無効になった分だけ補充する（毎回引き直さない）
-    const suggestions = Suggest.reconcile(st, SUGGEST_COUNT);
+    const suggestions = pending ? [] : Suggest.reconcile(st, SUGGEST_COUNT);
     currentSuggestions = suggestions;
     Store.save();
+
+    // 天気カード
+    const wx = Weather.current();
+    let weatherCard = "";
+    if (Weather.isEnabled()) {
+      if (wx) {
+        const rainNote = Weather.isRainy(wx) ? " 雨の可能性あり。傘や、防水のアウターを。" : "";
+        weatherCard = `
+          <div class="card">
+            <div class="row">
+              <div style="min-width:0">
+                <div style="font-weight:900; font-size:15px">${escapeHtml(Weather.location().label)} の今日の天気</div>
+                <div class="hint">${escapeHtml(Weather.summaryText(wx))}</div>
+              </div>
+              <span class="badge">${escapeHtml(Weather.tierLabel(wx))}</span>
+            </div>
+            <div class="hint" style="margin-top:8px">${escapeHtml(Weather.tierAdvice(wx))}${escapeHtml(rainNote)}</div>
+          </div>
+        `;
+      } else {
+        weatherCard = `
+          <div class="card">
+            <div class="row">
+              <div style="min-width:0">
+                <div style="font-weight:900; font-size:15px">今日の天気</div>
+                <div class="hint">${escapeHtml(Weather.statusText())}</div>
+              </div>
+              <button class="btn-ghost btn-small" data-act="wx-refresh" ${pending ? "disabled" : ""}>更新</button>
+            </div>
+          </div>
+        `;
+      }
+    }
 
     const lock = st.ui.lock;
     const excludedCount = (st.ui.excluded || []).length;
@@ -733,6 +1071,7 @@ const UI = (() => {
     };
 
     root.innerHTML = `
+      ${weatherCard}
       ${todayCard}
       <div class="card">
         <div class="row">
@@ -776,6 +1115,10 @@ const UI = (() => {
 
     // 提案リスト描画
     const list = root.querySelector("#suggestion-list");
+    if (pending) {
+      list.innerHTML = `<div class="card"><div class="hint">天気を確認して、提案を作っています…</div></div>`;
+      return;
+    }
     if (suggestions.length === 0) {
       list.innerHTML = `
         <div class="card">
@@ -861,6 +1204,7 @@ const UI = (() => {
       <div class="card">
         <div style="font-weight:900; font-size:16px">ワードローブ</div>
         <div class="hint">名前・色・タグは「編集」から変更できます。(${escapeHtml(catLabel(tab))} / 有効: ${enabledCount}点)</div>
+        <div class="hint" style="margin-top:4px">天気連動のタグ例：warm・厚手（寒い日）／ summer・薄手（暑い日）／ spring・autumn ／ rain・防水（雨の日）</div>
         <div style="margin-top:12px" class="tabs" id="wardrobe-tabs" role="tablist">
           ${CATS.map(c => `
             <button class="tab ${c.key === tab ? "active" : ""}" data-tab="${escapeHtml(c.key)}" role="tab" aria-selected="${c.key === tab}">${escapeHtml(c.label)}</button>
@@ -1015,6 +1359,56 @@ const UI = (() => {
       </div>
 
       <div class="card">
+        <div style="font-weight:900">天気連動</div>
+        <div class="hint" style="margin-top:6px">
+          今日の気温・降水確率に合わせて、アウターの有無や服の選ばれやすさを調整します。
+          送信されるのは地域の座標だけで、天気の取得（Open-Meteo）にのみ使います。
+        </div>
+
+        <div class="switch" style="margin-top:12px">
+          <input type="checkbox" id="wx-enabled" ${Weather.isEnabled() ? "checked" : ""} />
+          <label for="wx-enabled" style="font-size:13px; color:var(--text)">天気を提案に反映する</label>
+        </div>
+
+        <div class="hint" style="margin-top:10px">地域：<b id="wx-loc">${escapeHtml(Weather.location().label)}</b></div>
+        <div class="hint" id="wx-status" style="margin-top:4px">${escapeHtml(Weather.statusText())}</div>
+
+        <div class="divider"></div>
+
+        <div class="field">
+          <label for="wx-preset">主要都市からえらぶ</label>
+          <select id="wx-preset">
+            <option value="">地域をえらぶ…</option>
+            ${WX_PRESETS.map((p, i) => `<option value="${i}">${escapeHtml(p.label)}</option>`).join("")}
+          </select>
+        </div>
+
+        <div class="field" style="margin-top:10px">
+          <label for="wx-q">地名で検索</label>
+          <div class="row">
+            <input id="wx-q" placeholder="例：松本市" autocomplete="off" />
+            <button class="btn-ghost btn-small" data-act="wx-search" style="flex:0 0 auto">検索</button>
+          </div>
+        </div>
+        <div class="list" id="wx-results" style="margin-top:8px"></div>
+
+        <div class="btns">
+          <button class="btn-ghost btn-wide" data-act="wx-geo">現在地を使う</button>
+        </div>
+        <div class="btns">
+          <button class="btn-ghost btn-wide" data-act="wx-refresh">天気を更新</button>
+        </div>
+
+        <div class="divider"></div>
+        <div class="hint">
+          服の「タグ」や名前から向き不向きを判断します。<br>
+          寒い日向け：warm・厚手・防寒　／　暑い日向け：summer・薄手・涼しい<br>
+          春秋向け：spring・autumn　／　雨の日向け：rain・防水・撥水<br>
+          タグがない服は、天気に関係なく従来どおり選ばれます。
+        </div>
+      </div>
+
+      <div class="card">
         <div style="font-weight:900">データ管理</div>
         <div class="hint" style="margin-top:6px">
           端末を変えるとデータは引き継がれません。バックアップは「エクスポート」を使ってください。
@@ -1052,7 +1446,16 @@ const UI = (() => {
 
   function getCurrentSuggestions(){ return currentSuggestions; }
 
+  /** 設定画面の天気ステータス表示だけを更新（入力中のフォームを壊さない） */
+  function refreshWeatherStatus(){
+    const s = document.getElementById("wx-status");
+    if (s) s.textContent = Weather.statusText();
+    const l = document.getElementById("wx-loc");
+    if (l) l.textContent = Weather.location().label;
+  }
+
   return {
+    refreshWeatherStatus,
     init(){
       // ハッシュ → currentView 同期
       const hash = (location.hash || "#home").replace("#","");
@@ -1198,6 +1601,10 @@ const Actions = (() => {
   function handleHome(act, target){
     const st = Store.get();
 
+    if (act === "wx-refresh") {
+      handleWeather(act, target);
+      return;
+    }
     if (act === "resuggest") {
       st.ui.cands = []; // 全候補を引き直す
       UI.renderCurrent();
@@ -1431,8 +1838,91 @@ const Actions = (() => {
     }
   }
 
+  /* ---- WEATHER ---- */
+  let wxResults = [];   // 地名検索の結果（選択ボタンから参照）
+
+  async function applyLocation(loc){
+    const p = Weather.setLocation(loc);
+    UI.refreshWeatherStatus();   // 「取得中…」と新しい地域名を先に表示
+    const ok = await p;
+    UI.refreshWeatherStatus();
+    if (!Weather.isEnabled()) UI.toast("地域を設定しました（天気連動はオフです）");
+    else UI.toast(ok ? `${loc.label}の天気を取得しました` : "天気を取得できませんでした");
+  }
+
+  async function handleWeather(act, target){
+    if (act === "wx-refresh") {
+      if (!Weather.isEnabled()) { UI.toast("天気連動がオフです"); return; }
+      UI.toast("天気を更新しています");
+      const ok = await Weather.refresh(true);
+      UI.toast(ok ? "天気を更新しました" : "天気を取得できませんでした");
+      return;
+    }
+
+    if (act === "wx-geo") {
+      UI.toast("現在地を取得しています");
+      let loc;
+      try {
+        loc = await Weather.locate();
+      } catch {
+        UI.toast("現在地を取得できませんでした");
+        return;
+      }
+      await applyLocation(loc);
+      return;
+    }
+
+    if (act === "wx-search") {
+      const q = (document.getElementById("wx-q")?.value || "").trim();
+      if (!q) { UI.toast("地名を入力してください"); return; }
+      const box = document.getElementById("wx-results");
+      if (box) box.innerHTML = `<div class="hint">検索中…</div>`;
+      try {
+        wxResults = await Weather.search(q);
+      } catch {
+        wxResults = [];
+        const b = document.getElementById("wx-results");
+        if (b) b.innerHTML = `<div class="hint">検索に失敗しました。通信状況を確認してください。</div>`;
+        return;
+      }
+      const out = document.getElementById("wx-results");   // 検索中に画面を移動していたら何もしない
+      if (!out) return;
+      out.innerHTML = wxResults.length === 0
+        ? `<div class="hint">見つかりませんでした。「松本市」のように市区町村名で試すか、上の一覧からえらんでください。</div>`
+        : wxResults.map((r, i) => `
+            <button class="btn-ghost btn-small btn-wide" style="text-align:left" data-act="wx-pick" data-idx="${i}">
+              ${escapeHtml(r.label)}${r.sub ? `<span class="hint">　${escapeHtml(r.sub)}</span>` : ""}
+            </button>`).join("");
+      return;
+    }
+
+    if (act === "wx-pick") {
+      const r = wxResults[Number(target?.dataset.idx)];
+      if (!r) return;
+      const out = document.getElementById("wx-results");
+      if (out) out.innerHTML = "";
+      await applyLocation(r);
+    }
+  }
+
+  function handleWeatherChange(target){
+    if (target.id === "wx-enabled") {
+      Weather.setEnabled(target.checked);
+      UI.refreshWeatherStatus();
+      UI.toast(target.checked ? "天気連動をオンにしました" : "天気連動をオフにしました");
+    } else if (target.id === "wx-preset") {
+      const p = WX_PRESETS[Number(target.value)];
+      target.value = "";
+      if (p) applyLocation(p);
+    }
+  }
+
   /* ---- SETTINGS ---- */
-  function handleSettings(act){
+  function handleSettings(act, target){
+    if (typeof act === "string" && act.startsWith("wx-")) {
+      handleWeather(act, target);
+      return;
+    }
     if (act === "export") {
       const st = Store.get();
       const blob = new Blob([JSON.stringify(st, null, 2)], { type: "application/json" });
@@ -1482,6 +1972,7 @@ const Actions = (() => {
     handleWardrobe,
     handleHistory,
     handleSettings,
+    handleWeatherChange,
     handleFileImport,
   };
 })();
@@ -1500,7 +1991,15 @@ function bindDelegatedEvents(){
     if (document.getElementById("view-home").contains(actEl))      { Actions.handleHome(act, actEl); return; }
     if (document.getElementById("view-wardrobe").contains(actEl))  { Actions.handleWardrobe(act, actEl); return; }
     if (document.getElementById("view-history").contains(actEl))   { Actions.handleHistory(act); return; }
-    if (document.getElementById("view-settings").contains(actEl))  { Actions.handleSettings(act); return; }
+    if (document.getElementById("view-settings").contains(actEl))  { Actions.handleSettings(act, actEl); return; }
+  });
+
+  // 地名検索：Enter キーでも検索
+  document.body.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.target && e.target.id === "wx-q") {
+      e.preventDefault();
+      Actions.handleSettings("wx-search", e.target);
+    }
   });
 
   // change：ロック select・ワードローブタブ・ファイル選択
@@ -1508,6 +2007,10 @@ function bindDelegatedEvents(){
     const homeRoot = document.getElementById("view-home");
     if (homeRoot.contains(e.target) && e.target.matches("select[data-lock]")) {
       Actions.handleHomeChange(e.target);
+      return;
+    }
+    if (e.target.id === "wx-enabled" || e.target.id === "wx-preset") {
+      Actions.handleWeatherChange(e.target);
       return;
     }
     if (e.target.id === "import-file") {
@@ -1541,6 +2044,7 @@ function bindDelegatedEvents(){
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState !== "visible") return;
     if (Modal.isOpen()) return;
+    Weather.refresh();   // 日付が変わっていれば今日の天気を取得（新しいキャッシュがあれば何もしない）
     if (Store.rollover()) {
       Store.save();
       UI.renderCurrent();
@@ -1566,6 +2070,16 @@ function bindDelegatedEvents(){
   Store.init();
   UI.init();
   bindDelegatedEvents();
+
+  // 天気の取得が終わったら画面に反映（入力中の設定フォームは壊さない）
+  Weather.onChange(() => {
+    if (Modal.isOpen()) return;
+    const view = Store.get().ui.currentView;
+    if (view === "home") UI.renderCurrent();
+    else if (view === "settings") UI.refreshWeatherStatus();
+  });
+  Weather.init();   // 今日の予報が未取得なら取得開始（取得中は候補の作成を待つ）
+
   UI.renderCurrent();
 })();
 </script>
