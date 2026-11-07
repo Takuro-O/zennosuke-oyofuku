@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>ぜんのすけ 服コーデ提案</title>
-  <meta name="theme-color" content="#3B82F6" />
+  <meta name="theme-color" content="#f6f1ea" />
   <meta name="description" content="手持ちの服から、天気に合わせて今日のコーデを提案します。" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
@@ -14,10 +14,14 @@
   <meta name="apple-mobile-web-app-title" content="服コーデ" />
   <style>
     :root{
-      --bg:#f6f7fb; --card:#fff; --text:#111; --muted:#6b7280; --line:#e5e7eb;
-      --brand:#111; --brand2:#3B82F6; --danger:#dc2626; --ok:#16a34a;
-      --shadow:0 6px 18px rgba(0,0,0,.06);
-      --radius:18px;
+      /* 配色：生成りの背景＋藍（基調）＋コーラル（「採用」など主役のボタン） */
+      --bg:#f6f1ea; --card:#fffdf9; --text:#1f2340; --muted:#7a7387; --line:#eadfd2;
+      --soft:#f3ece2;            /* サムネイル・空枠の背景 */
+      --brand:#1f2340; --brand2:#2F3E9E; --sel:#e9ecfa; --bar:#e3e6f6;
+      --accent:#F26B5B; --accent2:#F5894F;
+      --danger:#d6453d; --ok:#2f8f6b;
+      --shadow:0 6px 18px rgba(60,40,20,.07);
+      --radius:22px;
       /* z-index 一元管理 */
       --z-header:10;
       --z-nav:20;
@@ -37,19 +41,19 @@
     .app{max-width:520px; margin:0 auto; padding-bottom:calc(88px + env(safe-area-inset-bottom));}
     header{
       position:sticky; top:0; z-index:var(--z-header);
-      background:linear-gradient(to bottom, rgba(246,247,251,0.95), rgba(246,247,251,0.75));
+      background:linear-gradient(to bottom, rgba(246,241,234,0.96), rgba(246,241,234,0.78));
       backdrop-filter: blur(8px);
       padding:14px 14px 8px;
-      border-bottom:1px solid rgba(229,231,235,0.6);
+      border-bottom:1px solid var(--line);
     }
     .title{display:flex; align-items:flex-end; justify-content:space-between; gap:10px}
-    h1{margin:0; font-size:18px}
+    h1{margin:0; font-size:18px; color:var(--brand2)}
     .sub{color:var(--muted); font-size:12px; margin-top:4px}
     .pill{
       display:inline-flex; align-items:center; gap:6px;
-      border:1px solid var(--line); background:#fff;
+      border:1px solid var(--line); background:var(--card);
       padding:8px 10px; border-radius:999px; font-weight:600; font-size:12px;
-      box-shadow: 0 2px 10px rgba(0,0,0,.03);
+      box-shadow: 0 2px 10px rgba(60,40,20,.05);
     }
     .content{padding:14px}
     .card{
@@ -69,9 +73,12 @@
       appearance:none; border:none; border-radius:14px; padding:12px 12px;
       font-weight:800; font-size:14px; cursor:pointer;
     }
-    .btn-primary{background:var(--brand2); color:#fff}
-    .btn-ghost{background:#fff; color:var(--text); border:1px solid var(--line)}
-    .btn-danger{background:#fff; color:var(--danger); border:1px solid rgba(220,38,38,.35)}
+    .btn-primary{
+      background:linear-gradient(135deg, var(--accent), var(--accent2)); color:#fff;
+      box-shadow:0 6px 14px rgba(242,107,91,.32);
+    }
+    .btn-ghost{background:var(--card); color:var(--text); border:1px solid var(--line)}
+    .btn-danger{background:var(--card); color:var(--danger); border:1px solid rgba(214,69,61,.35)}
     .btn-small{padding:10px 10px; font-size:13px; border-radius:12px; white-space:nowrap; flex:0 0 auto}
     .btn-wide{width:100%}
     button:active{transform:scale(.99)}
@@ -81,7 +88,7 @@
     }
     .tabs{display:grid; grid-template-columns:repeat(3, 1fr); gap:8px}
     .tab{
-      background:#fff; border:1px solid var(--line); border-radius:14px; padding:10px 8px;
+      background:var(--card); border:1px solid var(--line); border-radius:14px; padding:10px 8px;
       font-weight:800; font-size:13px;
     }
     .tab.active{background:var(--brand2); border-color:var(--brand2); color:#fff}
@@ -89,31 +96,32 @@
     label{font-size:12px; color:var(--muted); font-weight:700}
     input, select, textarea{
       width:100%; border:1px solid var(--line); border-radius:14px;
-      padding:12px 12px; font-size:14px; background:#fff;
+      padding:12px 12px; font-size:14px; background:var(--card); color:var(--text);
       outline:none;
       font-family:inherit;
     }
+    input[type="checkbox"]{width:auto; flex:0 0 auto; accent-color:var(--brand2)}
     textarea{min-height:84px; resize:vertical}
     .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
     .switch{display:flex; align-items:center; gap:8px}
     .list{display:flex; flex-direction:column; gap:10px}
     .itemRow{
-      background:#fff; border:1px solid var(--line); border-radius:16px; padding:12px;
-      box-shadow: 0 2px 10px rgba(0,0,0,.03);
+      background:var(--card); border:1px solid var(--line); border-radius:16px; padding:12px;
+      box-shadow: 0 2px 10px rgba(60,40,20,.05);
     }
     .itemTop{display:flex; align-items:flex-start; justify-content:space-between; gap:10px}
     .badge{
       font-size:11px; font-weight:900; padding:6px 10px; border-radius:999px;
-      border:1px solid var(--line); background:#fff; white-space:nowrap; flex:0 0 auto;
+      border:1px solid var(--line); background:var(--card); white-space:nowrap; flex:0 0 auto;
     }
     .badge.off{color:var(--muted)}
-    .badge.on{color:var(--ok); border-color:rgba(22,163,74,.25)}
+    .badge.on{color:var(--ok); border-color:rgba(47,143,107,.3)}
     .actions{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap}
     .hint{font-size:12px; color:var(--muted); line-height:1.35}
     .divider{height:1px; background:var(--line); margin:12px 0}
     .nav{
       position:fixed; left:0; right:0; bottom:0;
-      background:#fff; border-top:1px solid var(--line);
+      background:var(--card); border-top:1px solid var(--line);
       padding:10px 10px calc(10px + env(safe-area-inset-bottom));
       z-index:var(--z-nav);
     }
@@ -128,7 +136,7 @@
     .toast{
       position:fixed; left:50%; transform:translateX(-50%);
       bottom:calc(86px + env(safe-area-inset-bottom));
-      background:#111; color:#fff; padding:10px 12px; border-radius:999px;
+      background:var(--text); color:#fff; padding:10px 12px; border-radius:999px;
       font-weight:800; font-size:12px; opacity:0; pointer-events:none;
       transition:opacity .2s;
       z-index:var(--z-toast);
@@ -136,7 +144,7 @@
     .toast.show{opacity:1}
     .toast.hasAction.show{pointer-events:auto}
     .toastBtn{
-      margin-left:10px; border:0; background:none; color:#93c5fd;
+      margin-left:10px; border:0; background:none; color:#ffb4a8;
       font-weight:900; font-size:12px; padding:0 2px; cursor:pointer;
     }
     .condToggle{
@@ -144,12 +152,23 @@
       border:0; background:none; padding:2px 0; font:inherit; font-weight:900; font-size:14px; cursor:pointer; color:var(--text);
     }
     .condToggle .hint{margin:0; font-weight:700}
+    /* 天気カード：気温の区分で色が変わる */
+    .wxcard{
+      --wx-bg:#fffdf9; --wx-line:var(--line); --wx-ink:var(--brand2);
+      background:linear-gradient(135deg, var(--wx-bg), var(--card)); border-color:var(--wx-line);
+    }
+    .wxcard .badge{background:var(--wx-ink); color:#fff; border-color:var(--wx-ink)}
+    .wx-cold{--wx-bg:#e3ecfa; --wx-line:#b7cdf0; --wx-ink:#2f5fb8}
+    .wx-cool{--wx-bg:#e2f1f2; --wx-line:#b4d8db; --wx-ink:#2a7f87}
+    .wx-mild{--wx-bg:#eaf3de; --wx-line:#c9dfb0; --wx-ink:#4f8a2c}
+    .wx-warm{--wx-bg:#fdf0d8; --wx-line:#f2d196; --wx-ink:#c0750b}
+    .wx-hot{--wx-bg:#fde4dd; --wx-line:#f3b2a2; --wx-ink:#d04a35}
     .chipRow{display:flex; gap:8px; flex-wrap:wrap}
     .chip{
       display:inline-flex; align-items:center; gap:6px;
       font-size:12px; font-weight:900;
       padding:8px 10px; border-radius:999px;
-      border:1px solid var(--line); background:#fff;
+      border:1px solid var(--line); background:var(--card);
     }
     .chip strong{font-size:12px}
     /* モーダル */
@@ -165,7 +184,7 @@
     /* 写真サムネイル */
     .thumb{
       width:44px; height:44px; border-radius:12px; object-fit:cover; flex:0 0 auto; display:block;
-      border:1px solid var(--line); background:#f3f4f6;
+      border:1px solid var(--line); background:var(--soft);
     }
     .thumb.lg{width:56px; height:56px; border-radius:14px}
     .thumb.ph{
@@ -178,12 +197,12 @@
     .calgrid{display:grid; grid-template-columns:repeat(7, 1fr); gap:6px}
     .calhead{text-align:center; font-size:11px; font-weight:800; color:var(--muted); padding-bottom:2px}
     .calcell{
-      padding:4px 2px; border-radius:12px; border:1px solid var(--line); background:#fff;
+      padding:4px 2px; border-radius:12px; border:1px solid var(--line); background:var(--card);
       min-height:52px; font-size:12px; font-weight:800; color:var(--text);
       display:flex; flex-direction:column; align-items:center; justify-content:space-between; gap:2px;
     }
     .calcell.today{border-color:var(--brand2)}
-    .calcell.sel{background:#eff6ff; border-color:var(--brand2); box-shadow:0 0 0 1px var(--brand2) inset}
+    .calcell.sel{background:var(--sel); border-color:var(--brand2); box-shadow:0 0 0 1px var(--brand2) inset}
     .calcell[disabled]{opacity:.35}
     .calblank{min-height:52px}
     .scenes{display:grid; grid-template-columns:repeat(4, 1fr); gap:6px}
@@ -192,7 +211,7 @@
     .calthumb{width:24px; height:24px; border-radius:7px; object-fit:cover; display:block}
     .calmark{height:24px; display:flex; align-items:center; justify-content:center}
     /* 集計バー */
-    .bar{height:6px; border-radius:999px; background:#e8efff; overflow:hidden; margin-top:6px}
+    .bar{height:6px; border-radius:999px; background:var(--bar); overflow:hidden; margin-top:6px}
     .bar > i{display:block; height:100%; background:var(--brand2); border-radius:999px}
     /* 確認ダイアログ */
     .confirm-card{
@@ -1397,7 +1416,7 @@ const UI = (() => {
       if (wx) {
         const rainNote = Weather.isRainy(wx) ? " 雨の可能性あり。傘や、防水のアウターを。" : "";
         weatherCard = `
-          <div class="card">
+          <div class="card wxcard wx-${Weather.tierOf(wx)}">
             <div class="row">
               <div style="min-width:0">
                 <div style="font-weight:900; font-size:15px">${escapeHtml(Weather.location().label)} の今日の天気</div>
@@ -1433,7 +1452,7 @@ const UI = (() => {
       ? new Date(today.at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })
       : "";
     const todayCard = today ? `
-      <div class="card" style="border-color:rgba(22,163,74,.35)">
+      <div class="card" style="border-color:rgba(47,143,107,.4)">
         <div class="row">
           <div>
             <div style="font-weight:900; font-size:16px">今日のコーデ</div>
@@ -1517,7 +1536,7 @@ const UI = (() => {
           <div style="font-weight:900">昨日は何を着た？</div>
           <button class="btn-ghost btn-small" data-act="yday-skip" aria-label="閉じる">✕</button>
         </div>
-        ${prevEntry ? `<div class="hint">前回（${escapeHtml(fmtDate(prevEntry.at))}）：${escapeHtml(prevNames)}</div>` : ""}
+        ${prevEntry ? `<div class="hint">前回（${new Date(prevEntry.at).getMonth() + 1}/${new Date(prevEntry.at).getDate()}）：${escapeHtml(prevNames)}</div>` : ""}
         <div class="btns" style="margin-top:10px">
           ${prevEntry ? `<button class="btn-ghost btn-wide" data-act="yday-same">前回と同じ</button>` : ""}
           <button class="btn-ghost btn-wide" data-act="yday-input">入力する</button>
